@@ -1,0 +1,6 @@
+# FlowNote Project - Ensure system Node.js is used
+# Add this to your ~/.zshrc or source this file before running pnpm commands
+
+# Prioritize system Node.js over conda's Node.js
+export PATH="/usr/local/bin:$PATH"
+
