@@ -13,10 +13,16 @@ interface TaskReviewProps {
   onCancel: () => void;
 }
 
-export default function TaskReview({ tasks, onApply, onCancel }: TaskReviewProps) {
+export default function TaskReview({
+  tasks,
+  onApply,
+  onCancel,
+}: TaskReviewProps) {
   const [editingTasks, setEditingTasks] = useState<ParsedTask[]>(tasks);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingField, setEditingField] = useState<"title" | "description" | null>(null);
+  const [editingField, setEditingField] = useState<
+    "title" | "description" | null
+  >(null);
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [isApplying, setIsApplying] = useState(false);
@@ -55,13 +61,19 @@ export default function TaskReview({ tasks, onApply, onCancel }: TaskReviewProps
     setEditDescription("");
   };
 
-  const handlePriorityChange = (taskId: string, priority: "low" | "medium" | "high") => {
+  const handlePriorityChange = (
+    taskId: string,
+    priority: "low" | "medium" | "high"
+  ) => {
     setEditingTasks((prev) =>
       prev.map((task) => (task.id === taskId ? { ...task, priority } : task))
     );
   };
 
-  const handleEffortChange = (taskId: string, effort: "small" | "medium" | "large") => {
+  const handleEffortChange = (
+    taskId: string,
+    effort: "small" | "medium" | "large"
+  ) => {
     setEditingTasks((prev) =>
       prev.map((task) => (task.id === taskId ? { ...task, effort } : task))
     );
@@ -94,22 +106,18 @@ export default function TaskReview({ tasks, onApply, onCancel }: TaskReviewProps
   };
 
   const handleApply = async () => {
-    if (editingTasks.length === 0) {
-      console.warn("[TaskReview] No tasks to apply");
-      return;
-    }
-    
-    console.log("[TaskReview] Applying tasks:", editingTasks);
+    if (editingTasks.length === 0 || isApplying) return;
+
     setIsApplying(true);
-    
     try {
       await onApply(editingTasks);
-      console.log("[TaskReview] Tasks applied successfully");
+      onCancel(); // Close after success
     } catch (error) {
-      console.error("[TaskReview] Error applying tasks:", error);
-      // Don't reset isApplying on error - let the error message show
-      // The error will be displayed in ChatPanel
-      throw error; // Re-throw so ChatPanel can handle it
+      alert(
+        `Failed to create tasks: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
     } finally {
       setIsApplying(false);
     }
@@ -142,14 +150,16 @@ export default function TaskReview({ tasks, onApply, onCancel }: TaskReviewProps
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              console.log("[TaskReview] Cancel button clicked, calling onCancel");
+              console.log(
+                "[TaskReview] Cancel button clicked, calling onCancel"
+              );
               onCancel();
               console.log("[TaskReview] onCancel called");
             }}
             className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors relative z-[100] cursor-pointer flex items-center justify-center"
             type="button"
             aria-label="Close task review"
-            style={{ pointerEvents: 'auto' }}
+            style={{ pointerEvents: "auto" }}
           >
             <X className="w-4 h-4" />
           </button>
@@ -235,18 +245,24 @@ export default function TaskReview({ tasks, onApply, onCancel }: TaskReviewProps
 
                 <div className="flex flex-col gap-2 mt-3">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500 font-medium w-16">Priority:</span>
+                    <span className="text-xs text-gray-500 font-medium w-16">
+                      Priority:
+                    </span>
                     <div className="flex items-center gap-1">
                       {(["low", "medium", "high"] as const).map((priority) => (
                         <button
                           key={priority}
-                          onClick={() => handlePriorityChange(task.id, priority)}
+                          onClick={() =>
+                            handlePriorityChange(task.id, priority)
+                          }
                           className={`w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs font-semibold transition-all ${
                             task.priority === priority
                               ? getPriorityColor(priority) + " scale-110"
                               : "bg-gray-100 text-gray-400 border-gray-300 hover:bg-gray-200"
                           }`}
-                          title={priority.charAt(0).toUpperCase() + priority.slice(1)}
+                          title={
+                            priority.charAt(0).toUpperCase() + priority.slice(1)
+                          }
                         >
                           {priority.charAt(0).toUpperCase()}
                         </button>
@@ -255,7 +271,9 @@ export default function TaskReview({ tasks, onApply, onCancel }: TaskReviewProps
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500 font-medium w-16">Effort:</span>
+                    <span className="text-xs text-gray-500 font-medium w-16">
+                      Effort:
+                    </span>
                     <div className="flex items-center gap-1">
                       {(["small", "medium", "large"] as const).map((effort) => (
                         <button
@@ -266,7 +284,9 @@ export default function TaskReview({ tasks, onApply, onCancel }: TaskReviewProps
                               ? getEffortColor(effort) + " scale-110"
                               : "bg-gray-100 text-gray-400 border-gray-300 hover:bg-gray-200"
                           }`}
-                          title={effort.charAt(0).toUpperCase() + effort.slice(1)}
+                          title={
+                            effort.charAt(0).toUpperCase() + effort.slice(1)
+                          }
                         >
                           {effort.charAt(0).toUpperCase()}
                         </button>
@@ -285,10 +305,10 @@ export default function TaskReview({ tasks, onApply, onCancel }: TaskReviewProps
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            console.log("[TaskReview] Apply button clicked", { 
+            console.log("[TaskReview] Apply button clicked", {
               editingTasksLength: editingTasks.length,
               isApplying,
-              tasks: editingTasks 
+              tasks: editingTasks,
             });
             handleApply();
           }}
@@ -341,53 +361,134 @@ export default function TaskReview({ tasks, onApply, onCancel }: TaskReviewProps
           isOpen={showMultiScheduler}
           onClose={() => setShowMultiScheduler(false)}
           onSave={async (scheduledTasks) => {
+            console.log(
+              `[TaskReview] onSave called with ${scheduledTasks.length} tasks`
+            );
+
+            // Validate input
+            if (!scheduledTasks || scheduledTasks.length === 0) {
+              throw new Error("No tasks to save");
+            }
+
+            // Validate dates
+            for (const st of scheduledTasks) {
+              if (!st.start || !st.end) {
+                throw new Error(
+                  `Task "${st.task.title}" is missing start or end time`
+                );
+              }
+              if (!(st.start instanceof Date) || !(st.end instanceof Date)) {
+                throw new Error(
+                  `Task "${st.task.title}" has invalid date objects`
+                );
+              }
+              if (isNaN(st.start.getTime()) || isNaN(st.end.getTime())) {
+                throw new Error(
+                  `Task "${st.task.title}" has invalid date values`
+                );
+              }
+              if (st.start >= st.end) {
+                throw new Error(
+                  `Task "${st.task.title}" has end time before start time`
+                );
+              }
+            }
+
             try {
               const { createClient } = await import("@/lib/supabase/client");
               const supabase = createClient();
-              const { data: { user } } = await supabase.auth.getUser();
-              if (!user) throw new Error("Not authenticated");
 
-              console.log(`[TaskReview] Saving ${scheduledTasks.length} scheduled tasks to calendar`);
+              console.log("[TaskReview] Getting user...");
+              const {
+                data: { user },
+                error: userError,
+              } = await supabase.auth.getUser();
+
+              if (userError) {
+                console.error("[TaskReview] User error:", userError);
+                throw new Error(`Authentication error: ${userError.message}`);
+              }
+
+              if (!user) {
+                throw new Error("Not authenticated - no user found");
+              }
+
+              console.log(`[TaskReview] User authenticated: ${user.id}`);
+              console.log(
+                `[TaskReview] Saving ${scheduledTasks.length} scheduled tasks to calendar`
+              );
 
               // Create events for all scheduled tasks
-              const insertPromises = scheduledTasks.map((st) => {
+              const insertPromises = scheduledTasks.map((st, index) => {
                 const eventData = {
                   user_id: user.id,
-                  title: st.task.title,
+                  title: st.task.title || `Task ${index + 1}`,
                   category: "deep-work" as const,
                   start_ts: st.start.toISOString(),
                   end_ts: st.end.toISOString(),
                   notes: st.task.description || null,
                 };
-                console.log(`[TaskReview] Creating event:`, eventData);
+                console.log(`[TaskReview] Creating event ${index + 1}:`, {
+                  title: eventData.title,
+                  start: eventData.start_ts,
+                  end: eventData.end_ts,
+                });
                 return supabase.from("events").insert(eventData).select();
               });
 
+              console.log("[TaskReview] Waiting for all inserts...");
               const results = await Promise.all(insertPromises);
-              
+              console.log(
+                "[TaskReview] All inserts completed, checking results..."
+              );
+
               // Check for errors
               const errors = results.filter((r) => r.error);
               if (errors.length > 0) {
                 console.error("[TaskReview] Errors saving some tasks:", errors);
-                const errorMessages = errors.map((e, i) => `Task ${i + 1}: ${e.error?.message || "Unknown error"}`).join("\n");
-                throw new Error(`Failed to save ${errors.length} task(s):\n${errorMessages}`);
+                const errorMessages = errors
+                  .map(
+                    (e, i) =>
+                      `Task ${i + 1}: ${e.error?.message || "Unknown error"}`
+                  )
+                  .join("\n");
+                throw new Error(
+                  `Failed to save ${errors.length} task(s):\n${errorMessages}`
+                );
               }
 
               // Verify all inserts succeeded
-              const successfulInserts = results.filter((r) => r.data && r.data.length > 0);
-              console.log(`[TaskReview] Successfully inserted ${successfulInserts.length} events:`, successfulInserts.map(r => r.data));
-              
+              const successfulInserts = results.filter(
+                (r) => r.data && r.data.length > 0
+              );
+              console.log(
+                `[TaskReview] Successfully inserted ${successfulInserts.length} events:`,
+                successfulInserts.map((r) => r.data)
+              );
+
               if (successfulInserts.length !== scheduledTasks.length) {
-                throw new Error(`Only ${successfulInserts.length} out of ${scheduledTasks.length} tasks were saved`);
+                throw new Error(
+                  `Only ${successfulInserts.length} out of ${scheduledTasks.length} tasks were saved`
+                );
               }
 
-              console.log(`[TaskReview] Successfully saved ${scheduledTasks.length} tasks to calendar`);
-              
+              console.log(
+                `[TaskReview] Successfully saved ${scheduledTasks.length} tasks to calendar`
+              );
+
               // Dispatch event to notify calendar to refresh
-              window.dispatchEvent(new CustomEvent('eventsUpdated'));
-              
+              window.dispatchEvent(new CustomEvent("eventsUpdated"));
+
+              console.log("[TaskReview] onSave completed successfully");
             } catch (error) {
-              console.error("[TaskReview] Error saving scheduled tasks:", error);
+              console.error(
+                "[TaskReview] Error saving scheduled tasks:",
+                error
+              );
+              console.error(
+                "[TaskReview] Error stack:",
+                error instanceof Error ? error.stack : "No stack trace"
+              );
               throw error;
             }
           }}
@@ -396,5 +497,3 @@ export default function TaskReview({ tasks, onApply, onCancel }: TaskReviewProps
     </motion.div>
   );
 }
-
-

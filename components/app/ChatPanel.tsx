@@ -1,10 +1,20 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, X, Bot, Target, BookOpen, Copy, Edit2, Check, X as XIcon } from "lucide-react";
+import {
+  Send,
+  X,
+  Bot,
+  Target,
+  BookOpen,
+  Copy,
+  Edit2,
+  Check,
+  X as XIcon,
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { sendAIMessage, type AIMessage } from "@/lib/ai";
-import { parseAIResponse, type ParsedTask } from "@/lib/parse-tasks";
+import { type ParsedTask } from "@/lib/parse-tasks";
 import { useTasks } from "@/lib/hooks/use-tasks";
 import { useChatPanel } from "@/lib/contexts/ChatPanelContext";
 import TaskReview from "./TaskReview";
@@ -28,14 +38,16 @@ const CHARACTER_NAMES = {
 } as const;
 
 const CHARACTER_GREETINGS = {
-  productivity: "Hi! I'm Tasker, your productivity assistant. How can I help you get things done today?",
-  journal: "Hello! I'm Scribe, your journaling companion. Ready to reflect and write together?",
+  productivity:
+    "Hi! I'm Tasker, your productivity assistant. How can I help you get things done today?",
+  journal:
+    "Hello! I'm Scribe, your journaling companion. Ready to reflect and write together?",
 } as const;
 
 export default function ChatPanel() {
   const { collapsed, setCollapsed } = useChatPanel();
   const [mode, setMode] = useState<AIMode>("productivity");
-  
+
   // Initialize messages with mode-specific greeting
   const getInitialMessage = (currentMode: AIMode) => ({
     id: "1",
@@ -52,7 +64,7 @@ export default function ChatPanel() {
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const { createTask, refetch: refetchTasks } = useTasks();
+  const { createTask, createTasksBatch, refetch: refetchTasks } = useTasks();
   const [reviewingMessageId, setReviewingMessageId] = useState<string | null>(
     null
   );
@@ -98,31 +110,36 @@ export default function ChatPanel() {
           content: msg.content,
         }));
 
-      // Call AI API with mode
+      // Call AI API with mode - now returns JSON directly
       const aiResponse = await sendAIMessage(
         userInput,
         conversationHistory,
         mode
       );
 
-      // Parse response for tasks (only in productivity mode)
-      const parsed =
-        mode === "productivity"
-          ? parseAIResponse(aiResponse)
-          : { text: aiResponse, tasks: [] };
+      // Convert AI tasks to ParsedTask format
+      const parsedTasks: ParsedTask[] = aiResponse.tasks.map((task, index) => ({
+        id: `task-${Date.now()}-${index}`,
+        title: task.title,
+        description: task.description,
+        priority: task.priority,
+        effort: task.effort,
+        due_date: task.due_date,
+        tags: task.tags || [],
+      }));
 
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: parsed.text,
+        content: aiResponse.message,
         timestamp: new Date(),
-        parsedTasks: parsed.tasks.length > 0 ? parsed.tasks : undefined,
+        parsedTasks: parsedTasks.length > 0 ? parsedTasks : undefined,
       };
 
       setMessages((prev) => [...prev, aiMessage]);
 
       // Show review UI if tasks were parsed
-      if (parsed.tasks.length > 0) {
+      if (parsedTasks.length > 0) {
         setReviewingMessageId(aiMessage.id);
       }
     } catch (err: any) {
@@ -224,13 +241,13 @@ export default function ChatPanel() {
         initial={{ width: 380 }}
         animate={{ width: 60 }}
         className="glass-chat border-l border-white/30 z-30 flex flex-col items-center py-4"
-        style={{ 
-          position: 'fixed',
+        style={{
+          position: "fixed",
           right: 0,
-          left: 'auto',
-          top: '4rem',
+          left: "auto",
+          top: "4rem",
           bottom: 0,
-          transform: 'translateX(0)',
+          transform: "translateX(0)",
         }}
       >
         <motion.button
@@ -246,27 +263,27 @@ export default function ChatPanel() {
   }
 
   return (
-            <motion.aside
-              initial={{ width: 60 }}
-              animate={{ width: 380 }}
-              className="glass-chat border-l border-white/30 z-30 flex flex-col relative overflow-hidden"
-              style={{ 
-                position: 'fixed',
-                right: 0,
-                left: 'auto',
-                top: '4rem',
-                bottom: 0,
-                transform: 'translateX(0)',
-                background: "rgba(255, 255, 255, 0.6)",
-                backdropFilter: "blur(24px)",
-              }}
-            >
+    <motion.aside
+      initial={{ width: 60 }}
+      animate={{ width: 380 }}
+      className="glass-chat border-l border-white/30 z-30 flex flex-col relative overflow-hidden"
+      style={{
+        position: "fixed",
+        right: 0,
+        left: "auto",
+        top: "4rem",
+        bottom: 0,
+        transform: "translateX(0)",
+        background: "rgba(255, 255, 255, 0.6)",
+        backdropFilter: "blur(24px)",
+      }}
+    >
       {/* Background Sphere - Mode Specific */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         <motion.div
           className={`absolute w-[600px] h-[600px] rounded-full bg-gradient-to-br ${currentColors.sphere} blur-3xl`}
           initial={{ scale: 0.8, opacity: 0.2 }}
-          animate={{ 
+          animate={{
             scale: [0.8, 1, 0.8],
             opacity: [0.2, 0.3, 0.2],
           }}
@@ -287,7 +304,9 @@ export default function ChatPanel() {
       <div className="flex items-center justify-between p-4 border-b border-white/20 relative z-10">
         <div className="flex items-center gap-2">
           <Bot className={`w-5 h-5 ${currentColors.icon}`} />
-          <h3 className="font-semibold text-gray-900">{CHARACTER_NAMES[mode]}</h3>
+          <h3 className="font-semibold text-gray-900">
+            {CHARACTER_NAMES[mode]}
+          </h3>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -369,7 +388,7 @@ export default function ChatPanel() {
                     </button>
                   </div>
                 )}
-                
+
                 <div
                   className={`max-w-[80%] rounded-3xl px-4 py-2.5 relative ${
                     message.role === "user"
@@ -466,59 +485,45 @@ export default function ChatPanel() {
                   <TaskReview
                     tasks={message.parsedTasks}
                     onApply={async (tasks) => {
-                      console.log("[ChatPanel] onApply called with tasks:", tasks);
-                      try {
-                        if (!tasks || tasks.length === 0) {
-                          throw new Error("No tasks to create");
-                        }
+                      console.log(
+                        "[ChatPanel] onApply called with tasks:",
+                        tasks
+                      );
 
-                        let createdCount = 0;
-                        for (const task of tasks) {
-                          if (!task.title || !task.title.trim()) {
-                            console.warn("[ChatPanel] Skipping task with empty title:", task);
-                            continue;
-                          }
-                          
-                          console.log("[ChatPanel] Creating task:", {
-                            title: task.title,
-                            priority: task.priority,
-                            effort: task.effort,
-                            due_date: task.due_date,
-                          });
-
-                          await createTask({
-                            title: task.title.trim(),
-                            notes: task.description || null,
-                            priority: task.priority,
-                            effort: task.effort,
-                            due_date: task.due_date,
-                            tags: task.tags || [],
-                            status: "open",
-                          });
-                          
-                          createdCount++;
-                          console.log(`[ChatPanel] Task ${createdCount} created successfully`);
-                        }
-
-                        if (createdCount === 0) {
-                          throw new Error("No valid tasks to create");
-                        }
-
-                        console.log(`[ChatPanel] All ${createdCount} tasks created, refetching...`);
-                        // Refetch tasks to update the list
-                        await refetchTasks();
-                        console.log("[ChatPanel] Tasks refetched, closing review UI");
-                        setReviewingMessageId(null);
-                        setError(null);
-                      } catch (err: any) {
-                        console.error("[ChatPanel] Error creating tasks:", err);
-                        const errorMessage = err.message || "Failed to create tasks. Please try again.";
-                        setError(errorMessage);
-                        throw err; // Re-throw so TaskReview can handle loading state
+                      // Simple task creation - no complex timeouts
+                      if (!tasks || tasks.length === 0) {
+                        throw new Error("No tasks to create");
                       }
+
+                      // Prepare tasks
+                      const validTasks = tasks
+                        .filter((task) => task.title && task.title.trim())
+                        .map((task) => ({
+                          title: task.title.trim(),
+                          notes: task.description || null,
+                          priority: task.priority,
+                          effort: task.effort,
+                          due_date: task.due_date,
+                          tags: task.tags || [],
+                          status: "open" as const,
+                        }));
+
+                      if (validTasks.length === 0) {
+                        throw new Error("No valid tasks to create");
+                      }
+
+                      // Create tasks - simple batch insert
+                      await createTasksBatch(validTasks);
+
+                      // Refetch and close
+                      await refetchTasks();
+                      setReviewingMessageId(null);
+                      setError(null);
                     }}
                     onCancel={() => {
-                      console.log("[ChatPanel] onCancel called, closing task review");
+                      console.log(
+                        "[ChatPanel] onCancel called, closing task review"
+                      );
                       setReviewingMessageId(null);
                     }}
                   />
@@ -583,15 +588,17 @@ export default function ChatPanel() {
       <div className="p-4 border-t border-white/20 relative z-10">
         <div className="flex items-end gap-2">
           <div className="flex-1 relative">
-            <div 
+            <div
               className="absolute inset-0 rounded-2xl pointer-events-none z-0"
               style={{
-                background: mode === "productivity"
-                  ? "linear-gradient(135deg, #3B82F6, #2563EB)"
-                  : "linear-gradient(135deg, #8B5CF6, #7C3AED)",
+                background:
+                  mode === "productivity"
+                    ? "linear-gradient(135deg, #3B82F6, #2563EB)"
+                    : "linear-gradient(135deg, #8B5CF6, #7C3AED)",
                 padding: "2px",
                 borderRadius: "16px",
-                WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+                WebkitMask:
+                  "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
                 WebkitMaskComposite: "xor",
                 maskComposite: "exclude",
               }}

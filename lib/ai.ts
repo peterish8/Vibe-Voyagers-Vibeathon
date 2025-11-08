@@ -5,13 +5,25 @@ export interface AIMessage {
   content: string;
 }
 
+export interface AIResponse {
+  message: string;
+  tasks: Array<{
+    title: string;
+    description?: string;
+    priority: "low" | "medium" | "high";
+    effort: "small" | "medium" | "large";
+    due_date: string | null;
+    tags: string[];
+  }>;
+}
+
 export type AIMode = "productivity" | "journal";
 
 export async function sendAIMessage(
   message: string,
   conversationHistory: AIMessage[] = [],
   mode: AIMode = "productivity"
-): Promise<string> {
+): Promise<AIResponse> {
   try {
     const response = await fetch("/api/ai", {
       method: "POST",
@@ -31,7 +43,10 @@ export async function sendAIMessage(
     }
 
     const data = await response.json();
-    return data.message;
+    return {
+      message: data.message || "",
+      tasks: data.tasks || [],
+    };
   } catch (error: any) {
     console.error("Error sending AI message:", error);
     throw error;

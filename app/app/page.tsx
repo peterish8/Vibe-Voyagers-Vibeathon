@@ -1,11 +1,13 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { format, isToday, startOfDay, endOfDay } from "date-fns";
+import { motion, AnimatePresence } from "framer-motion";
+import { Calendar, BookOpen, Mic } from "lucide-react";
+import { format, isToday, startOfDay, endOfDay, startOfWeek, addDays, isSameDay, getDate } from "date-fns";
 import { useTasks } from "@/lib/hooks/use-tasks";
 import { useEvents } from "@/lib/hooks/use-events";
 import { useHabits } from "@/lib/hooks/use-habits";
 import { useProfile } from "@/lib/hooks/use-profile";
+import { useEffect, useMemo } from "react";
 import Link from "next/link";
 
 export default function Dashboard() {
@@ -13,10 +15,21 @@ export default function Dashboard() {
   const greeting = getGreeting();
   const { displayName } = useProfile();
   const { tasks, loading: tasksLoading } = useTasks();
-  const { events, loading: eventsLoading } = useEvents(
+  const { events, loading: eventsLoading, refetch } = useEvents(
     startOfDay(today),
     endOfDay(today)
   );
+
+  // Listen for events updated from other components (like AI allocation)
+  useEffect(() => {
+    const handleEventsUpdated = () => {
+      console.log("[Dashboard] Events updated, refreshing...");
+      refetch();
+    };
+    
+    window.addEventListener('eventsUpdated', handleEventsUpdated);
+    return () => window.removeEventListener('eventsUpdated', handleEventsUpdated);
+  }, [refetch]);
   const {
     habits,
     logs,
@@ -47,14 +60,29 @@ export default function Dashboard() {
           })
           .slice(0, 3);
 
-  // Get today's events
-  const todayEvents =
-    eventsLoading || !events
-      ? []
-      : events.filter((e) => {
+  // Get today's events, sorted by start time (memoized to prevent glitching)
+  const todayEvents = useMemo(() => {
+    if (!events || events.length === 0) return [];
+    
+    return events
+      .filter((e) => {
+        if (!e.start_ts) return false;
+        try {
           const eventDate = new Date(e.start_ts);
           return isToday(eventDate);
-        });
+        } catch {
+          return false;
+        }
+      })
+      .sort((a, b) => {
+        if (!a.start_ts || !b.start_ts) return 0;
+        try {
+          return new Date(a.start_ts).getTime() - new Date(b.start_ts).getTime();
+        } catch {
+          return 0;
+        }
+      });
+  }, [events]);
 
   // Get habit stats
   const habitStats =
@@ -191,21 +219,97 @@ export default function Dashboard() {
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
               Today&apos;s Schedule
             </h2>
-                    {todayEvents.length > 0 ? (
-              <div className="space-y-2">
+            
+            {/* Mini Calendar Widget */}
+            <div className="mb-4">
+              {/* Calendar Grid */}
+              <div className="grid grid-cols-7 gap-1 mb-2">
+                {/* Day headers */}
+                {["S", "M", "T", "W", "T", "F", "S"].map((day, idx) => (
+                  <div
+                    key={idx}
+                    className="text-xs font-semibold text-gray-500 text-center py-1"
+                  >
+                    {day}
+                  </div>
+                ))}
+                
+                {/* Calendar days */}
+                {(() => {
+                  const weekStart = startOfWeek(today, { weekStartsOn: 0 });
+                  const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+                  
+                  return days.map((day, idx) => {
+                    const isTodayDate = isToday(day);
+                    const dayEvents = todayEvents.filter((e) => {
+                      if (!e.start_ts) return false;
+                      try {
+                        return isSameDay(new Date(e.start_ts), day);
+                      } catch {
+                        return false;
+                      }
+                    });
+                    
+                    return (
+                      <div
+                        key={idx}
+                        className={`relative aspect-square rounded-lg border-2 flex flex-col items-center justify-center text-xs font-medium transition-all ${
+                          isTodayDate
+                            ? "bg-purple-100 border-purple-500 text-purple-700"
+                            : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                        }`}
+                      >
+                        <span>{getDate(day)}</span>
+                        {dayEvents.length > 0 && (
+                          <div className="absolute bottom-0.5 left-0 right-0 flex justify-center gap-0.5">
+                            {dayEvents.slice(0, 3).map((event, eventIdx) => (
+                              <div
+                                key={eventIdx}
+                                className={`w-1 h-1 rounded-full ${
+                                  event.category === "deep-work"
+                                    ? "bg-purple-500"
+                                    : event.category === "study"
+                                    ? "bg-blue-500"
+                                    : event.category === "health"
+                                    ? "bg-green-500"
+                                    : "bg-gray-400"
+                                }`}
+                              />
+                            ))}
+                            {dayEvents.length > 3 && (
+                              <span className="text-[8px] text-gray-500">+{dayEvents.length - 3}</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+            
+            {/* Today's Events List */}
+            {todayEvents.length > 0 ? (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="space-y-2"
+              >
                 {todayEvents.slice(0, 4).map((event) => {
+                  if (!event.start_ts) return null;
                   const startTime = new Date(event.start_ts);
-                  const endTime = new Date(event.end_ts);
                   return (
-                    <div
+                    <motion.div
                       key={event.id}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
                       className="flex items-center gap-3 text-sm"
                     >
-                      <div className="w-16 text-gray-500">
+                      <div className="w-16 text-gray-500 text-xs">
                         <span suppressHydrationWarning>{format(startTime, "h:mm a")}</span>
                       </div>
                       <div
-                        className={`flex-1 h-12 rounded-lg border flex items-center px-3 ${
+                        className={`flex-1 h-10 rounded-lg border flex items-center px-3 ${
                           event.category === "deep-work"
                             ? "bg-purple-100/50 border-purple-200/50"
                             : event.category === "study"
@@ -215,20 +319,26 @@ export default function Dashboard() {
                             : "bg-gray-100/50 border-gray-200/50"
                         }`}
                       >
-                        <span className="text-gray-700">{event.title}</span>
+                        <span className="text-gray-700 text-sm truncate">{event.title}</span>
                       </div>
-                    </div>
+                    </motion.div>
                   );
                 })}
-              </div>
-            ) : (
-              <p className="text-sm text-gray-500">
+                {todayEvents.length > 4 && (
+                  <p className="text-xs text-gray-500 text-center pt-2">
+                    +{todayEvents.length - 4} more event{todayEvents.length - 4 > 1 ? "s" : ""}
+                  </p>
+                )}
+              </motion.div>
+            ) : !eventsLoading ? (
+              <p className="text-sm text-gray-500 text-center py-4">
                 No events scheduled for today.
               </p>
-            )}
+            ) : null}
+            
             <Link
               href="/app/calendar"
-              className="mt-4 text-sm text-purple-600 hover:text-purple-700 font-medium block"
+              className="mt-4 text-sm text-purple-600 hover:text-purple-700 font-medium block text-center"
             >
               View full calendar →
             </Link>

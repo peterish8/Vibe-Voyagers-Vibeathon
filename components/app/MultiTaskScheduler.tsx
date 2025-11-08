@@ -3,8 +3,25 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Calendar, Clock, Sparkles, ChevronLeft, ChevronRight, Save } from "lucide-react";
-import { format, addDays, startOfWeek, isSameDay, addHours, setHours, setMinutes, startOfDay } from "date-fns";
+import {
+  X,
+  Calendar,
+  Clock,
+  Sparkles,
+  ChevronLeft,
+  ChevronRight,
+  Save,
+} from "lucide-react";
+import {
+  format,
+  addDays,
+  startOfWeek,
+  isSameDay,
+  addHours,
+  setHours,
+  setMinutes,
+  startOfDay,
+} from "date-fns";
 import { ParsedTask } from "@/lib/parse-tasks";
 import { useEvents } from "@/lib/hooks/use-events";
 import { createClient } from "@/lib/supabase/client";
@@ -22,7 +39,9 @@ interface MultiTaskSchedulerProps {
   tasks: ParsedTask[];
   isOpen: boolean;
   onClose: () => void;
-  onSave: (scheduledTasks: Array<{ task: ParsedTask; start: Date; end: Date }>) => Promise<void>;
+  onSave: (
+    scheduledTasks: Array<{ task: ParsedTask; start: Date; end: Date }>
+  ) => Promise<void>;
 }
 
 export default function MultiTaskScheduler({
@@ -34,7 +53,11 @@ export default function MultiTaskScheduler({
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([]);
   const [draggedTask, setDraggedTask] = useState<string | null>(null);
-  const [dragOverSlot, setDragOverSlot] = useState<{ dayIndex: number; hour: number; minutes?: number } | null>(null);
+  const [dragOverSlot, setDragOverSlot] = useState<{
+    dayIndex: number;
+    hour: number;
+    minutes?: number;
+  } | null>(null);
   const [mounted, setMounted] = useState(false);
   const [isAllocating, setIsAllocating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -48,7 +71,9 @@ export default function MultiTaskScheduler({
   }, []);
 
   // Calculate duration based on effort
-  const getDuration = (effort: "small" | "medium" | "large" | string): number => {
+  const getDuration = (
+    effort: "small" | "medium" | "large" | string
+  ): number => {
     switch (effort) {
       case "small":
         return 0.5; // 30 minutes
@@ -57,7 +82,9 @@ export default function MultiTaskScheduler({
       case "large":
         return 3; // 3 hours
       default:
-        console.warn(`[MultiTaskScheduler] Unknown effort level: ${effort}, defaulting to medium`);
+        console.warn(
+          `[MultiTaskScheduler] Unknown effort level: ${effort}, defaulting to medium`
+        );
         return 1.5; // Default to medium
     }
   };
@@ -65,43 +92,113 @@ export default function MultiTaskScheduler({
   // Parse time preferences from task title
   const parseTimePreference = (title: string) => {
     const text = title.toLowerCase();
-    
-    // Try to match specific times like "10:30", "11:30", "10:30 am", etc.
-    const timePattern = /(\d{1,2}):(\d{2})\s*(am|pm)?/i;
-    const timeMatch = text.match(timePattern);
-    if (timeMatch) {
-      let hour = parseInt(timeMatch[1]);
-      const minutes = parseInt(timeMatch[2]);
-      const ampm = timeMatch[3]?.toLowerCase();
-      
+
+    // First, check for "after X pm/am" or "after X:XX pm/am" patterns (more specific)
+    const afterPattern = /after\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i;
+    const afterMatch = text.match(afterPattern);
+    if (afterMatch) {
+      let hour = parseInt(afterMatch[1]);
+      const minutes = afterMatch[2] ? parseInt(afterMatch[2]) : 0;
+      const ampm = afterMatch[3]?.toLowerCase();
+
       // Convert to 24-hour format
-      if (ampm === 'pm' && hour !== 12) hour += 12;
-      if (ampm === 'am' && hour === 12) hour = 0;
-      
+      if (ampm === "pm" && hour !== 12) hour += 12;
+      if (ampm === "am" && hour === 12) hour = 0;
+
       // Round minutes to nearest 15 minutes
       const roundedMinutes = Math.round(minutes / 15) * 15;
-      
+
       if (hour >= 0 && hour <= 23) {
-        return { preferredHour: hour, preferredMinutes: roundedMinutes, type: 'specific' };
+        return {
+          preferredHour: hour,
+          preferredMinutes: roundedMinutes,
+          type: "after",
+        };
       }
     }
-    
-    // Evening/night patterns
-    if (text.includes('after 8') || text.includes('8 pm') || text.includes('8pm') || 
-        text.includes('evening') || text.includes('night') || text.includes('8 o\'clock')) {
-      return { preferredHour: 20, preferredMinutes: 0, type: 'evening' }; // 8 PM
+
+    // Check for "before X pm/am" patterns
+    const beforePattern = /before\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i;
+    const beforeMatch = text.match(beforePattern);
+    if (beforeMatch) {
+      let hour = parseInt(beforeMatch[1]);
+      const minutes = beforeMatch[2] ? parseInt(beforeMatch[2]) : 0;
+      const ampm = beforeMatch[3]?.toLowerCase();
+
+      // Convert to 24-hour format
+      if (ampm === "pm" && hour !== 12) hour += 12;
+      if (ampm === "am" && hour === 12) hour = 0;
+
+      // For "before", schedule 1 hour earlier
+      hour = Math.max(0, hour - 1);
+      const roundedMinutes = Math.round(minutes / 15) * 15;
+
+      if (hour >= 0 && hour <= 23) {
+        return {
+          preferredHour: hour,
+          preferredMinutes: roundedMinutes,
+          type: "before",
+        };
+      }
     }
-    
+
+    // Try to match specific times like "10:30", "11:30", "10:30 am", etc. (but not if it's part of "after/before")
+    if (!text.includes("after") && !text.includes("before")) {
+      const timePattern = /(\d{1,2}):(\d{2})\s*(am|pm)?/i;
+      const timeMatch = text.match(timePattern);
+      if (timeMatch) {
+        let hour = parseInt(timeMatch[1]);
+        const minutes = parseInt(timeMatch[2]);
+        const ampm = timeMatch[3]?.toLowerCase();
+
+        // Convert to 24-hour format
+        if (ampm === "pm" && hour !== 12) hour += 12;
+        if (ampm === "am" && hour === 12) hour = 0;
+
+        // Round minutes to nearest 15 minutes
+        const roundedMinutes = Math.round(minutes / 15) * 15;
+
+        if (hour >= 0 && hour <= 23) {
+          return {
+            preferredHour: hour,
+            preferredMinutes: roundedMinutes,
+            type: "specific",
+          };
+        }
+      }
+
+      // Check for simple hour patterns like "8 pm", "9am" (but not if it's part of "after/before")
+      const simpleHourPattern = /\b(\d{1,2})\s*(am|pm)\b/i;
+      const simpleMatch = text.match(simpleHourPattern);
+      if (simpleMatch) {
+        let hour = parseInt(simpleMatch[1]);
+        const ampm = simpleMatch[2]?.toLowerCase();
+
+        // Convert to 24-hour format
+        if (ampm === "pm" && hour !== 12) hour += 12;
+        if (ampm === "am" && hour === 12) hour = 0;
+
+        if (hour >= 0 && hour <= 23) {
+          return { preferredHour: hour, preferredMinutes: 0, type: "specific" };
+        }
+      }
+    }
+
+    // Evening/night patterns (only if no specific time found)
+    if (text.includes("evening") || text.includes("night")) {
+      return { preferredHour: 20, preferredMinutes: 0, type: "evening" }; // 8 PM
+    }
+
     // Morning patterns
-    if (text.includes('morning') || text.includes('early') || text.includes('9 am') || text.includes('9am')) {
-      return { preferredHour: 9, preferredMinutes: 0, type: 'morning' };
+    if (text.includes("morning") || text.includes("early")) {
+      return { preferredHour: 9, preferredMinutes: 0, type: "morning" };
     }
-    
+
     // Afternoon patterns
-    if (text.includes('afternoon') || text.includes('lunch') || text.includes('2 pm') || text.includes('2pm')) {
-      return { preferredHour: 14, preferredMinutes: 0, type: 'afternoon' };
+    if (text.includes("afternoon") || text.includes("lunch")) {
+      return { preferredHour: 14, preferredMinutes: 0, type: "afternoon" };
     }
-    
+
     return null;
   };
 
@@ -113,25 +210,34 @@ export default function MultiTaskScheduler({
     }
 
     setIsAllocating(true);
-    
+
     // Clear existing scheduled tasks
     setScheduledTasks([]);
-    
+
     // Separate tasks with time preferences
-    const tasksWithTimePrefs = tasks.map(task => ({
-      ...task,
-      timePreference: parseTimePreference(task.title)
-    }));
-    
+    const tasksWithTimePrefs = tasks.map((task) => {
+      const timePref = parseTimePreference(task.title);
+      console.log(
+        `[AI Allocate] Task: "${task.title}" -> Time preference:`,
+        timePref
+      );
+      return {
+        ...task,
+        timePreference: timePref,
+      };
+    });
+
     // Sort: time-specific tasks first, then by priority
     const sortedTasks = [...tasksWithTimePrefs].sort((a, b) => {
       // Time-specific tasks go first
       if (a.timePreference && !b.timePreference) return -1;
       if (!a.timePreference && b.timePreference) return 1;
-      
+
       // Then by priority
       const priorityOrder = { high: 3, medium: 2, low: 1 };
-      return (priorityOrder[b.priority] || 0) - (priorityOrder[a.priority] || 0);
+      return (
+        (priorityOrder[b.priority] || 0) - (priorityOrder[a.priority] || 0)
+      );
     });
 
     const allocated: ScheduledTask[] = [];
@@ -142,62 +248,66 @@ export default function MultiTaskScheduler({
       const duration = getDuration(task.effort);
       let startHour = currentHour;
       let startMinutes = currentMinutes;
-      
+
       // Use time preference if specified
       if (task.timePreference) {
         startHour = task.timePreference.preferredHour;
         startMinutes = task.timePreference.preferredMinutes ?? 0;
       }
-      
+
       // Ensure start hour is within valid range (0-23)
       if (startHour < 0) startHour = 0;
       if (startHour > 23) startHour = 23;
-      
+
       // Create start time
       const startTime = new Date(selectedDate);
       startTime.setHours(startHour, startMinutes, 0, 0);
-      
+
       // Create end time, but clip to 11:59 PM if it extends past midnight
       const endTime = new Date(startTime);
-      endTime.setTime(startTime.getTime() + (duration * 60 * 60 * 1000));
-      
+      endTime.setTime(startTime.getTime() + duration * 60 * 60 * 1000);
+
       // Clip end time to 11:59 PM if it goes past midnight
       const maxEndTime = new Date(selectedDate);
       maxEndTime.setHours(23, 59, 0, 0);
       if (endTime > maxEndTime || endTime.getDate() > startTime.getDate()) {
         endTime.setTime(maxEndTime.getTime());
       }
-      
+
       allocated.push({
         task,
         startTime,
         endTime,
         dayIndex: 0,
         hour: startHour,
-        duration
+        duration,
       });
-      
+
       // Only advance time for non-specific tasks
       if (!task.timePreference) {
-        const totalMinutes = (duration * 60) + 15;
+        const totalMinutes = duration * 60 + 15;
         currentMinutes += totalMinutes;
-        
+
         while (currentMinutes >= 60) {
           currentHour += 1;
           currentMinutes -= 60;
         }
-        
+
         // Round to nearest 15 minutes for cleaner scheduling
         currentMinutes = Math.round(currentMinutes / 15) * 15;
-        
+
         // Don't allow scheduling past 11 PM
         if (currentHour >= 24) {
           currentHour = 23;
           currentMinutes = 0;
         }
       }
-      
-      console.log(`Allocated: ${task.title} at ${startTime.toLocaleTimeString()} (${task.timePreference ? 'time-specific' : 'auto'})`);
+
+      console.log(
+        `Allocated: ${task.title} at ${startTime.toLocaleTimeString()} (${
+          task.timePreference ? "time-specific" : "auto"
+        })`
+      );
     });
 
     console.log("Final allocated tasks:", allocated);
@@ -209,19 +319,23 @@ export default function MultiTaskScheduler({
     setDraggedTask(taskId);
   };
 
-  const handleDragOver = (e: React.DragEvent, dayIndex: number, hour: number) => {
+  const handleDragOver = (
+    e: React.DragEvent,
+    dayIndex: number,
+    hour: number
+  ) => {
     e.preventDefault();
-    
+
     // Calculate minutes based on mouse position within the hour slot
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const y = e.clientY - rect.top;
     const slotHeight = 48; // 48px per hour
     const rawMinutes = (y / slotHeight) * 60;
-    
+
     // Handle overflow: if minutes >= 60, move to next hour
     let displayHour = hour;
     let minutes = Math.round(rawMinutes);
-    
+
     if (minutes >= 60 && hour < 23) {
       displayHour = hour + 1;
       minutes = 0;
@@ -231,10 +345,10 @@ export default function MultiTaskScheduler({
     } else {
       minutes = Math.max(0, Math.min(59, minutes));
     }
-    
+
     // Round to nearest 15 minutes for easier scheduling
     const roundedMinutes = Math.round(minutes / 15) * 15;
-    
+
     setDragOverSlot({ dayIndex, hour: displayHour, minutes: roundedMinutes });
   };
 
@@ -244,7 +358,7 @@ export default function MultiTaskScheduler({
     // Get the hour and minutes from dragOverSlot if available, otherwise use defaults
     const targetHour = dragOverSlot?.hour ?? hour;
     const minutes = dragOverSlot?.minutes ?? 0;
-    
+
     // Ensure minutes are valid (0-59)
     const validMinutes = Math.max(0, Math.min(59, minutes));
 
@@ -301,17 +415,17 @@ export default function MultiTaskScheduler({
   const handleTimeSlotClick = (e: React.MouseEvent, hour: number) => {
     // Only handle clicks if there's a dragged task
     if (!draggedTask) return;
-    
+
     // Calculate minutes based on click position
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const y = e.clientY - rect.top;
     const slotHeight = 48; // 48px per hour
     const rawMinutes = (y / slotHeight) * 60;
-    
+
     // Handle overflow: if minutes >= 60, move to next hour
     let targetHour = hour;
     let minutes = Math.round(rawMinutes);
-    
+
     if (minutes >= 60 && hour < 23) {
       targetHour = hour + 1;
       minutes = 0;
@@ -321,14 +435,17 @@ export default function MultiTaskScheduler({
     } else {
       minutes = Math.max(0, Math.min(59, minutes));
     }
-    
+
     // Round to nearest 15 minutes
     const roundedMinutes = Math.round(minutes / 15) * 15;
-    
+
     // Use the same logic as handleDrop
     const unscheduledTask = tasks.find((t) => t.id === draggedTask);
     if (unscheduledTask) {
-      const newStart = setMinutes(setHours(dayStart, targetHour), roundedMinutes);
+      const newStart = setMinutes(
+        setHours(dayStart, targetHour),
+        roundedMinutes
+      );
       const duration = getDuration(unscheduledTask.effort);
       const newEnd = addHours(newStart, duration);
 
@@ -351,7 +468,10 @@ export default function MultiTaskScheduler({
       const task = scheduledTasks.find((st) => st.task.id === draggedTask);
       if (!task) return;
 
-      const newStart = setMinutes(setHours(dayStart, targetHour), roundedMinutes);
+      const newStart = setMinutes(
+        setHours(dayStart, targetHour),
+        roundedMinutes
+      );
       const newEnd = addHours(newStart, task.duration);
 
       setScheduledTasks((prev) =>
@@ -369,18 +489,24 @@ export default function MultiTaskScheduler({
       );
       setDraggedTask(null);
     }
-    
+
     setDragOverSlot(null);
   };
 
-  const handleResize = (taskId: string, newDuration: number, keepEndTime: boolean = false) => {
+  const handleResize = (
+    taskId: string,
+    newDuration: number,
+    keepEndTime: boolean = false
+  ) => {
     setScheduledTasks((prev) =>
       prev.map((st) => {
         if (st.task.id === taskId && st.startTime && st.endTime) {
           if (keepEndTime) {
             // Resizing from top: keep end time fixed, adjust start time
             const newStartTime = new Date(st.endTime);
-            newStartTime.setTime(newStartTime.getTime() - (newDuration * 60 * 60 * 1000));
+            newStartTime.setTime(
+              newStartTime.getTime() - newDuration * 60 * 60 * 1000
+            );
             return {
               ...st,
               startTime: newStartTime,
@@ -406,10 +532,10 @@ export default function MultiTaskScheduler({
       e.preventDefault();
       e.stopPropagation();
     }
-    
+
     console.log("[MultiTaskScheduler] handleSave called!");
     console.log("[MultiTaskScheduler] scheduledTasks:", scheduledTasks);
-    
+
     const validScheduled = scheduledTasks.filter(
       (st) => st.startTime && st.endTime
     );
@@ -422,44 +548,91 @@ export default function MultiTaskScheduler({
     }
 
     setIsSaving(true);
-    
+
     try {
-      console.log(`[MultiTaskScheduler] Saving ${validScheduled.length} tasks to calendar`);
-      console.log(`[MultiTaskScheduler] Tasks to save:`, validScheduled.map(st => ({
-        title: st.task.title,
-        start: st.startTime?.toISOString(),
-        end: st.endTime?.toISOString()
-      })));
-      
+      console.log(
+        `[MultiTaskScheduler] Saving ${validScheduled.length} tasks to calendar`
+      );
+      console.log(
+        `[MultiTaskScheduler] Tasks to save:`,
+        validScheduled.map((st) => ({
+          title: st.task.title,
+          start: st.startTime?.toISOString(),
+          end: st.endTime?.toISOString(),
+        }))
+      );
+
+      // Validate dates before saving
+      for (const st of validScheduled) {
+        if (!st.startTime || !st.endTime) {
+          throw new Error(
+            `Task "${st.task.title}" is missing start or end time`
+          );
+        }
+        if (isNaN(st.startTime.getTime()) || isNaN(st.endTime.getTime())) {
+          throw new Error(`Task "${st.task.title}" has invalid date values`);
+        }
+        if (st.startTime >= st.endTime) {
+          throw new Error(
+            `Task "${st.task.title}" has end time before or equal to start time`
+          );
+        }
+      }
+
       // Call the onSave callback which should save to calendar
       console.log("[MultiTaskScheduler] Calling onSave callback...");
-      await onSave(
+
+      // Add timeout to prevent infinite hanging
+      const savePromise = onSave(
         validScheduled.map((st) => ({
           task: st.task,
           start: st.startTime!,
           end: st.endTime!,
         }))
       );
+
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(
+          () => reject(new Error("Save operation timed out after 30 seconds")),
+          30000
+        );
+      });
+
+      await Promise.race([savePromise, timeoutPromise]);
       console.log("[MultiTaskScheduler] onSave callback completed");
-      
+
       // Refetch events to update the calendar view in this modal
       await refetch();
-      
+
       // Dispatch event to notify other components (like calendar page) to refresh
-      window.dispatchEvent(new CustomEvent('eventsUpdated'));
-      
-      console.log(`[MultiTaskScheduler] Successfully saved ${validScheduled.length} tasks`);
-      
+      window.dispatchEvent(new CustomEvent("eventsUpdated"));
+
+      console.log(
+        `[MultiTaskScheduler] Successfully saved ${validScheduled.length} tasks`
+      );
+
       // Show success message
       alert(`Successfully saved ${validScheduled.length} task(s) to calendar!`);
-      
+
       // Close the modal
       onClose();
     } catch (error) {
-      console.error("[MultiTaskScheduler] Error saving scheduled tasks:", error);
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(
+        "[MultiTaskScheduler] Error saving scheduled tasks:",
+        error
+      );
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       console.error("[MultiTaskScheduler] Full error:", error);
-      alert(`Failed to save tasks: ${errorMessage}`);
+      console.error(
+        "[MultiTaskScheduler] Error stack:",
+        error instanceof Error ? error.stack : "No stack trace"
+      );
+
+      // Show detailed error message
+      alert(
+        `Failed to save tasks:\n\n${errorMessage}\n\nPlease check the browser console for more details.`
+      );
     } finally {
       setIsSaving(false);
     }
@@ -476,7 +649,11 @@ export default function MultiTaskScheduler({
         const slotEnd = setHours(dayStart, hour + 1);
 
         // Check if event is on the selected day
-        return isSameDay(eventStart, selectedDate) && eventStart < slotEnd && eventEnd > slotStart;
+        return (
+          isSameDay(eventStart, selectedDate) &&
+          eventStart < slotEnd &&
+          eventEnd > slotStart
+        );
       } catch {
         return false;
       }
@@ -493,7 +670,7 @@ export default function MultiTaskScheduler({
 
       // Check if task overlaps with this hour slot
       const overlapsSlot = taskStart < slotEnd && taskEnd > slotStart;
-      
+
       return overlapsSlot;
     });
   };
@@ -522,7 +699,10 @@ export default function MultiTaskScheduler({
               <h2 className="text-xl font-semibold text-gray-900 mb-1">
                 Schedule All Tasks
               </h2>
-              <p className="text-sm text-gray-600">{tasks.length} tasks to schedule • {scheduledTasks.length} scheduled</p>
+              <p className="text-sm text-gray-600">
+                {tasks.length} tasks to schedule • {scheduledTasks.length}{" "}
+                scheduled
+              </p>
             </div>
             <div className="flex items-center gap-3">
               <button
@@ -564,7 +744,9 @@ export default function MultiTaskScheduler({
               <button
                 onClick={() => setSelectedDate(new Date())}
                 className={`px-4 py-2 rounded-lg glass text-sm font-medium hover:bg-white/80 transition-colors ${
-                  isSameDay(selectedDate, new Date()) ? "bg-purple-100 text-purple-700" : ""
+                  isSameDay(selectedDate, new Date())
+                    ? "bg-purple-100 text-purple-700"
+                    : ""
                 }`}
               >
                 Today
@@ -588,7 +770,9 @@ export default function MultiTaskScheduler({
               {/* Time column */}
               <div className="col-span-1 border-r border-gray-200">
                 <div className="h-10 border-b border-gray-200 flex items-center justify-center">
-                  <span className="text-xs font-semibold text-gray-700">Time</span>
+                  <span className="text-xs font-semibold text-gray-700">
+                    Time
+                  </span>
                 </div>
                 {hours.map((hour) => (
                   <div
@@ -609,7 +793,9 @@ export default function MultiTaskScheduler({
               {/* Single Day Column */}
               <div className="col-span-1">
                 <div className="h-12 flex flex-col items-center justify-center border-b border-gray-200 bg-purple-50 rounded-t-lg">
-                  <div className="text-xs text-gray-500">{format(selectedDate, "EEE")}</div>
+                  <div className="text-xs text-gray-500">
+                    {format(selectedDate, "EEE")}
+                  </div>
                   <div className="text-lg font-semibold text-purple-600">
                     {format(selectedDate, "d")}
                   </div>
@@ -624,53 +810,69 @@ export default function MultiTaskScheduler({
                       <div
                         key={hour}
                         className={`h-12 border-b border-gray-100 relative ${
-                          isDragOver ? "bg-purple-100/50" : "hover:bg-purple-50/30"
+                          isDragOver
+                            ? "bg-purple-100/50"
+                            : "hover:bg-purple-50/30"
                         } ${hour === 23 ? "border-b-0" : ""}`}
                         onDragOver={(e) => handleDragOver(e, 0, hour)}
                         onDrop={() => handleDrop(0, hour)}
                         onClick={(e) => handleTimeSlotClick(e, hour)}
                       >
                         {/* Show drop indicator with time */}
-                        {isDragOver && dragOverSlot?.hour === hour && dragOverSlot?.minutes !== undefined && (
-                          <div
-                            className="absolute left-0 right-0 border-t-2 border-purple-500 z-20 pointer-events-none"
-                            style={{
-                              top: `${(dragOverSlot.minutes / 60) * 48}px`,
-                            }}
-                          >
-                            <div className="absolute -top-3 left-1 bg-purple-500 text-white text-xs px-1.5 py-0.5 rounded">
-                              {(() => {
-                                // Calculate proper hour and minutes (handle overflow)
-                                let displayHour = hour;
-                                let displayMinutes = dragOverSlot.minutes;
-                                
-                                // If minutes >= 60, move to next hour
-                                if (displayMinutes >= 60) {
-                                  displayHour = (hour + 1) % 24;
-                                  displayMinutes = 0;
-                                }
-                                
-                                // Format for display
-                                if (displayHour === 0) {
-                                  return `12:${String(displayMinutes).padStart(2, "0")} AM`;
-                                } else if (displayHour === 12) {
-                                  return `12:${String(displayMinutes).padStart(2, "0")} PM`;
-                                } else if (displayHour > 12) {
-                                  return `${displayHour - 12}:${String(displayMinutes).padStart(2, "0")} PM`;
-                                } else {
-                                  return `${displayHour}:${String(displayMinutes).padStart(2, "0")} AM`;
-                                }
-                              })()}
+                        {isDragOver &&
+                          dragOverSlot?.hour === hour &&
+                          dragOverSlot?.minutes !== undefined && (
+                            <div
+                              className="absolute left-0 right-0 border-t-2 border-purple-500 z-20 pointer-events-none"
+                              style={{
+                                top: `${(dragOverSlot.minutes / 60) * 48}px`,
+                              }}
+                            >
+                              <div className="absolute -top-3 left-1 bg-purple-500 text-white text-xs px-1.5 py-0.5 rounded">
+                                {(() => {
+                                  // Calculate proper hour and minutes (handle overflow)
+                                  let displayHour = hour;
+                                  let displayMinutes = dragOverSlot.minutes;
+
+                                  // If minutes >= 60, move to next hour
+                                  if (displayMinutes >= 60) {
+                                    displayHour = (hour + 1) % 24;
+                                    displayMinutes = 0;
+                                  }
+
+                                  // Format for display
+                                  if (displayHour === 0) {
+                                    return `12:${String(
+                                      displayMinutes
+                                    ).padStart(2, "0")} AM`;
+                                  } else if (displayHour === 12) {
+                                    return `12:${String(
+                                      displayMinutes
+                                    ).padStart(2, "0")} PM`;
+                                  } else if (displayHour > 12) {
+                                    return `${displayHour - 12}:${String(
+                                      displayMinutes
+                                    ).padStart(2, "0")} PM`;
+                                  } else {
+                                    return `${displayHour}:${String(
+                                      displayMinutes
+                                    ).padStart(2, "0")} AM`;
+                                  }
+                                })()}
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          )}
                         {scheduledTasks
-                          .filter(task => {
+                          .filter((task) => {
                             if (!task.startTime || !task.endTime) return false;
                             const taskStart = new Date(task.startTime);
                             const taskHour = taskStart.getHours();
                             // Only show tasks that start in this hour slot, and ensure hour is valid (0-23)
-                            return taskHour === hour && taskHour >= 0 && taskHour <= 23;
+                            return (
+                              taskHour === hour &&
+                              taskHour >= 0 &&
+                              taskHour <= 23
+                            );
                           })
                           .map((task) => {
                             const taskStart = new Date(task.startTime!);
@@ -678,23 +880,31 @@ export default function MultiTaskScheduler({
                             const minutes = taskStart.getMinutes();
                             const taskStartHour = taskStart.getHours();
                             const taskEndHour = taskEnd.getHours();
-                            
+
                             // Calculate height, but clip to not extend past 11 PM (hour 23)
                             let heightPx = task.duration * 48; // 48px per hour
-                            
+
                             // If task extends past 11 PM, clip it to end at 11:59 PM
-                            if (taskEndHour > 23 || (taskEndHour === 0 && taskEnd.getDate() > taskStart.getDate())) {
+                            if (
+                              taskEndHour > 23 ||
+                              (taskEndHour === 0 &&
+                                taskEnd.getDate() > taskStart.getDate())
+                            ) {
                               const maxEndTime = new Date(taskStart);
                               maxEndTime.setHours(23, 59, 0, 0);
-                              const maxDuration = (maxEndTime.getTime() - taskStart.getTime()) / (1000 * 60 * 60); // hours
+                              const maxDuration =
+                                (maxEndTime.getTime() - taskStart.getTime()) /
+                                (1000 * 60 * 60); // hours
                               heightPx = maxDuration * 48;
                             }
-                            
+
                             return (
                               <div
                                 key={task.task.id}
                                 draggable
-                                onDragStart={() => handleDragStart(task.task.id)}
+                                onDragStart={() =>
+                                  handleDragStart(task.task.id)
+                                }
                                 className={`absolute left-1 right-1 rounded border-2 z-10 cursor-move group ${
                                   task.task.priority === "high"
                                     ? "bg-red-200 border-red-300 text-red-800 hover:bg-red-300"
@@ -704,64 +914,118 @@ export default function MultiTaskScheduler({
                                 } flex flex-col text-xs font-medium`}
                                 style={{
                                   top: `${(minutes / 60) * 48}px`,
-                                  height: `${Math.max(24, Math.min(heightPx, (24 - taskStartHour) * 48 - (minutes / 60) * 48))}px`,
+                                  height: `${Math.max(
+                                    24,
+                                    Math.min(
+                                      heightPx,
+                                      (24 - taskStartHour) * 48 -
+                                        (minutes / 60) * 48
+                                    )
+                                  )}px`,
                                 }}
-                                title={`${task.task.title} (${format(taskStart, "h:mm a")} - ${format(taskEnd, "h:mm a")})`}
+                                title={`${task.task.title} (${format(
+                                  taskStart,
+                                  "h:mm a"
+                                )} - ${format(taskEnd, "h:mm a")})`}
                               >
                                 {/* Top resize handle */}
-                                <div 
+                                <div
                                   className="h-1 w-full cursor-n-resize bg-gray-400 opacity-0 group-hover:opacity-100 transition-opacity"
                                   onMouseDown={(e) => {
                                     e.stopPropagation();
                                     e.preventDefault();
                                     const startY = e.clientY;
                                     const startDuration = task.duration;
-                                    
-                                    const handleMouseMove = (moveEvent: MouseEvent) => {
+
+                                    const handleMouseMove = (
+                                      moveEvent: MouseEvent
+                                    ) => {
                                       const deltaY = startY - moveEvent.clientY; // Inverted for top resize
                                       const deltaHours = deltaY / 48; // 48px per hour
-                                      const newDuration = Math.max(0.25, startDuration + deltaHours);
-                                      handleResize(task.task.id, newDuration, true); // true = keep end time fixed
+                                      const newDuration = Math.max(
+                                        0.25,
+                                        startDuration + deltaHours
+                                      );
+                                      handleResize(
+                                        task.task.id,
+                                        newDuration,
+                                        true
+                                      ); // true = keep end time fixed
                                     };
-                                    
+
                                     const handleMouseUp = () => {
-                                      document.removeEventListener('mousemove', handleMouseMove);
-                                      document.removeEventListener('mouseup', handleMouseUp);
+                                      document.removeEventListener(
+                                        "mousemove",
+                                        handleMouseMove
+                                      );
+                                      document.removeEventListener(
+                                        "mouseup",
+                                        handleMouseUp
+                                      );
                                     };
-                                    
-                                    document.addEventListener('mousemove', handleMouseMove);
-                                    document.addEventListener('mouseup', handleMouseUp);
+
+                                    document.addEventListener(
+                                      "mousemove",
+                                      handleMouseMove
+                                    );
+                                    document.addEventListener(
+                                      "mouseup",
+                                      handleMouseUp
+                                    );
                                   }}
                                 />
-                                
+
                                 {/* Task content */}
                                 <div className="flex-1 px-1.5 py-0.5 flex items-center">
-                                  <span className="truncate">{task.task.title}</span>
+                                  <span className="truncate">
+                                    {task.task.title}
+                                  </span>
                                 </div>
-                                
+
                                 {/* Bottom resize handle */}
-                                <div 
+                                <div
                                   className="h-1 w-full cursor-s-resize bg-gray-400 opacity-0 group-hover:opacity-100 transition-opacity"
                                   onMouseDown={(e) => {
                                     e.stopPropagation();
                                     e.preventDefault();
                                     const startY = e.clientY;
                                     const startDuration = task.duration;
-                                    
-                                    const handleMouseMove = (moveEvent: MouseEvent) => {
+
+                                    const handleMouseMove = (
+                                      moveEvent: MouseEvent
+                                    ) => {
                                       const deltaY = moveEvent.clientY - startY;
                                       const deltaHours = deltaY / 48; // 48px per hour
-                                      const newDuration = Math.max(0.25, startDuration + deltaHours);
-                                      handleResize(task.task.id, newDuration, false); // false = keep start time fixed
+                                      const newDuration = Math.max(
+                                        0.25,
+                                        startDuration + deltaHours
+                                      );
+                                      handleResize(
+                                        task.task.id,
+                                        newDuration,
+                                        false
+                                      ); // false = keep start time fixed
                                     };
-                                    
+
                                     const handleMouseUp = () => {
-                                      document.removeEventListener('mousemove', handleMouseMove);
-                                      document.removeEventListener('mouseup', handleMouseUp);
+                                      document.removeEventListener(
+                                        "mousemove",
+                                        handleMouseMove
+                                      );
+                                      document.removeEventListener(
+                                        "mouseup",
+                                        handleMouseUp
+                                      );
                                     };
-                                    
-                                    document.addEventListener('mousemove', handleMouseMove);
-                                    document.addEventListener('mouseup', handleMouseUp);
+
+                                    document.addEventListener(
+                                      "mousemove",
+                                      handleMouseMove
+                                    );
+                                    document.addEventListener(
+                                      "mouseup",
+                                      handleMouseUp
+                                    );
                                   }}
                                 />
                               </div>
@@ -775,7 +1039,9 @@ export default function MultiTaskScheduler({
                             onClick={(e) => {
                               e.stopPropagation();
                               // Open edit modal - we'll need to pass this through props
-                              window.dispatchEvent(new CustomEvent('editEvent', { detail: event }));
+                              window.dispatchEvent(
+                                new CustomEvent("editEvent", { detail: event })
+                              );
                             }}
                           >
                             {event.title}
@@ -791,10 +1057,14 @@ export default function MultiTaskScheduler({
 
           {/* Task List */}
           <div className="mb-4">
-            <h3 className="text-base font-semibold text-gray-900 mb-3">Tasks to Schedule</h3>
+            <h3 className="text-base font-semibold text-gray-900 mb-3">
+              Tasks to Schedule
+            </h3>
             <div className="space-y-2 max-h-40 overflow-y-auto">
               {tasks.map((task) => {
-                const scheduled = scheduledTasks.find((st) => st.task.id === task.id);
+                const scheduled = scheduledTasks.find(
+                  (st) => st.task.id === task.id
+                );
                 return (
                   <div
                     key={task.id}
@@ -808,7 +1078,9 @@ export default function MultiTaskScheduler({
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
-                        <p className="font-medium text-sm text-gray-900">{task.title}</p>
+                        <p className="font-medium text-sm text-gray-900">
+                          {task.title}
+                        </p>
                         <div className="flex items-center gap-2 mt-1">
                           <span
                             className={`px-2 py-0.5 rounded-full text-xs ${
@@ -834,13 +1106,17 @@ export default function MultiTaskScheduler({
                           </span>
                         </div>
                       </div>
-                      {scheduled && scheduled.startTime && scheduled.endTime && (
-                        <div className="text-xs text-gray-600 flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {format(scheduled.startTime, "MMM d, h:mm a")} -{" "}
-                          {format(scheduled.endTime, "h:mm a")}
-                        </div>
-                      )}
+                      {scheduled &&
+                        scheduled.startTime &&
+                        scheduled.endTime && (
+                          <div className="text-xs text-gray-600 flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {format(
+                              scheduled.startTime,
+                              "MMM d, h:mm a"
+                            )} - {format(scheduled.endTime, "h:mm a")}
+                          </div>
+                        )}
                     </div>
                   </div>
                 );
@@ -849,7 +1125,10 @@ export default function MultiTaskScheduler({
           </div>
 
           {/* Actions */}
-          <div className="flex items-center justify-end gap-3" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="flex items-center justify-end gap-3"
+            onClick={(e) => e.stopPropagation()}
+          >
             <button onClick={onClose} className="btn-glass">
               Cancel
             </button>
@@ -859,11 +1138,21 @@ export default function MultiTaskScheduler({
                 e.preventDefault();
                 e.stopPropagation();
                 console.log("[MultiTaskScheduler] Save button clicked!");
-                console.log("[MultiTaskScheduler] Button disabled state:", scheduledTasks.filter((st) => st.startTime && st.endTime).length === 0 || isSaving);
-                console.log("[MultiTaskScheduler] Scheduled tasks count:", scheduledTasks.length);
+                console.log(
+                  "[MultiTaskScheduler] Button disabled state:",
+                  scheduledTasks.filter((st) => st.startTime && st.endTime)
+                    .length === 0 || isSaving
+                );
+                console.log(
+                  "[MultiTaskScheduler] Scheduled tasks count:",
+                  scheduledTasks.length
+                );
                 handleSave(e);
               }}
-              disabled={scheduledTasks.filter((st) => st.startTime && st.endTime).length === 0 || isSaving}
+              disabled={
+                scheduledTasks.filter((st) => st.startTime && st.endTime)
+                  .length === 0 || isSaving
+              }
               className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {isSaving ? (
@@ -874,7 +1163,12 @@ export default function MultiTaskScheduler({
               ) : (
                 <>
                   <Save className="w-4 h-4" />
-                  Save All ({scheduledTasks.filter((st) => st.startTime && st.endTime).length}/{tasks.length})
+                  Save All (
+                  {
+                    scheduledTasks.filter((st) => st.startTime && st.endTime)
+                      .length
+                  }
+                  /{tasks.length})
                 </>
               )}
             </button>

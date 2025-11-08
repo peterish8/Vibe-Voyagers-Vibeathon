@@ -63,13 +63,14 @@ export async function POST(request: NextRequest) {
     // Build conversation context with mode-specific system prompt
     const systemPrompt =
       mode === "productivity"
-        ? `You are a friendly, encouraging AI assistant for FlowNote. When users provide task lists, respond with a brief, encouraging message (1 sentence, max 20 words) like "Great tasks! Let's get these organized." or "Nice list! Here's how we can structure these." Then add parsed tasks in this exact format:
+        ? `You are a friendly AI assistant for FlowNote. When users provide task lists, you MUST respond with ONLY a JSON object in this exact format (no other text before or after):
 
-<FLOWNOTE_TASKS>
 {
+  "message": "Brief encouraging message (max 15 words)",
   "tasks": [
     {
       "title": "Task title",
+      "description": "Optional description",
       "priority": "high|medium|low",
       "effort": "small|medium|large",
       "due_date": "YYYY-MM-DD or null",
@@ -77,14 +78,14 @@ export async function POST(request: NextRequest) {
     }
   ]
 }
-</FLOWNOTE_TASKS>
 
-Rules:
-- Keep responses VERY SHORT (1 sentence, max 20 words)
-- Be encouraging and friendly, not formal
-- Use casual language like "Great!", "Nice!", "Let's do this!"
+CRITICAL RULES:
+- Return ONLY valid JSON, no markdown, no code blocks, no extra text
 - Parse comma-separated task lists automatically
-- Infer priority/effort from context`
+- Infer priority from keywords: "urgent", "important", "asap" = high; "later", "whenever" = low
+- Infer effort from keywords: "quick", "simple", "easy" = small; "complex", "big", "major" = large
+- Extract dates from text like "before 11", "after 8pm", "tomorrow" and convert to YYYY-MM-DD format
+- If no tasks detected, return: {"message": "I didn't find any tasks. Can you list them?", "tasks": []}`
         : `You are a concise AI assistant for FlowNote focused on journaling. Keep responses SHORT (2-3 sentences, max 50 words). Be empathetic and direct.`;
 
     // Build contents array for proper conversation structure
@@ -125,12 +126,36 @@ Rules:
       contents: contents,
     });
 
-    const responseText =
+    let responseText =
       response.text ||
       "I'm sorry, I couldn't generate a response. Please try again.";
 
+    // For productivity mode, try to parse JSON response
+    if (mode === "productivity") {
+      try {
+        // Remove markdown code blocks if present
+        responseText = responseText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+        
+        // Try to parse as JSON
+        const jsonResponse = JSON.parse(responseText);
+        
+        // Validate structure
+        if (jsonResponse.tasks && Array.isArray(jsonResponse.tasks)) {
+          return NextResponse.json({
+            message: jsonResponse.message || "Tasks parsed successfully!",
+            tasks: jsonResponse.tasks,
+            success: true,
+          });
+        }
+      } catch (parseError) {
+        // If JSON parsing fails, fall back to text parsing
+        console.log("JSON parse failed, using text parser:", parseError);
+      }
+    }
+
     return NextResponse.json({
       message: responseText,
+      tasks: [],
       success: true,
     });
   } catch (error: any) {
