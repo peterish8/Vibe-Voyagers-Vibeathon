@@ -424,7 +424,7 @@ export default function MultiTaskScheduler({
                 <div className="relative">
                   {hours.map((hour) => {
                     const slotEvents = getEventsForSlot(0, hour);
-                    const task = getTaskForSlot(hour);
+                    const tasksForSlot = getTasksForSlot(hour);
                     const isDragOver = dragOverSlot?.hour === hour;
 
                     return (
@@ -436,53 +436,68 @@ export default function MultiTaskScheduler({
                         onDragOver={(e) => handleDragOver(e, 0, hour)}
                         onDrop={() => handleDrop(0, hour)}
                       >
-                        {task && task.startTime && task.endTime && (
-                          <div
-                            draggable
-                            onDragStart={() => handleDragStart(task.task.id)}
-                            className={`absolute left-0.5 right-0.5 rounded-md border z-10 cursor-move ${
-                              task.task.priority === "high"
-                                ? "bg-red-200 border-red-300 text-red-800"
-                                : task.task.priority === "medium"
-                                ? "bg-amber-200 border-amber-300 text-amber-800"
-                                : "bg-blue-200 border-blue-300 text-blue-800"
-                            } flex items-center px-2 py-1 text-xs font-medium overflow-hidden`}
-                            style={{
-                              top: `${Math.max(0, (task.startTime.getMinutes() / 60) * 64)}px`,
-                              height: `${Math.max(16, (task.duration * 64))}px`,
-                            }}
-                            title={`${task.task.title} (${format(task.startTime, "h:mm a")} - ${format(task.endTime, "h:mm a")})`}
-                          >
-                            <span className="truncate flex-1">{task.task.title}</span>
-                            <div className="flex items-center gap-1 ml-2">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (task.duration > 0.5) {
-                                    handleResize(task.task.id, task.duration - 0.5);
-                                  }
+                        {tasksForSlot.map((task) => {
+                          if (!task.startTime || !task.endTime) return null;
+                          
+                          const taskStart = new Date(task.startTime);
+                          const taskEnd = new Date(task.endTime);
+                          const taskStartHour = taskStart.getHours();
+                          const taskStartMin = taskStart.getMinutes();
+                          
+                          // Only render in the hour slot where the task starts
+                          if (taskStartHour === hour) {
+                            const minutesOffset = taskStartMin;
+                            const durationHours = task.duration;
+                            const heightInPixels = durationHours * 64; // 64px per hour
+                            
+                            return (
+                              <div
+                                key={task.task.id}
+                                draggable
+                                onDragStart={() => handleDragStart(task.task.id)}
+                                className={`absolute left-0.5 right-0.5 rounded-md border z-10 cursor-move ${
+                                  task.task.priority === "high"
+                                    ? "bg-red-200 border-red-300 text-red-800"
+                                    : task.task.priority === "medium"
+                                    ? "bg-amber-200 border-amber-300 text-amber-800"
+                                    : "bg-blue-200 border-blue-300 text-blue-800"
+                                } flex items-center px-2 py-1 text-xs font-medium overflow-hidden`}
+                                style={{
+                                  top: `${(minutesOffset / 60) * 64}px`,
+                                  height: `${Math.max(16, heightInPixels)}px`,
                                 }}
-                                className="px-1 hover:bg-white/50 rounded"
+                                title={`${task.task.title} (${format(taskStart, "h:mm a")} - ${format(taskEnd, "h:mm a")})`}
                               >
-                                -
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (task.duration < 4) {
-                                    handleResize(task.task.id, task.duration + 0.5);
-                                  }
-                                }}
-                                className="px-1 hover:bg-white/50 rounded"
-                              >
-                                +
-                              </button>
-                            </div>
-                          </div>
+                                <span className="truncate flex-1">{task.task.title}</span>
+                                <div className="flex items-center gap-1 ml-2">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (task.duration > 0.5) {
+                                        handleResize(task.task.id, task.duration - 0.5);
+                                      }
+                                    }}
+                                    className="px-1 hover:bg-white/50 rounded"
+                                  >
+                                    -
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (task.duration < 4) {
+                                        handleResize(task.task.id, task.duration + 0.5);
+                                      }
+                                    }}
+                                    className="px-1 hover:bg-white/50 rounded"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              </div>
                             );
                           }
                           return null;
-                        })()}
+                        })}
                         {slotEvents.map((event) => (
                           <div
                             key={event.id}
