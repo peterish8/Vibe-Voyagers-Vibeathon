@@ -3,11 +3,13 @@
 import { motion } from "framer-motion";
 import { useInView } from "framer-motion";
 import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function FinalCTA() {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-50px", amount: 0.3 });
   const [email, setEmail] = useState("");
+  const router = useRouter();
 
   return (
     <section ref={ref} className="py-32 px-6 md:px-12 relative overflow-hidden">
@@ -84,8 +86,7 @@ export default function FinalCTA() {
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  // Handle signup logic here
-                  console.log("Form submitted with email:", email);
+                  router.push("/app");
                 }}
               >
                 Get Started

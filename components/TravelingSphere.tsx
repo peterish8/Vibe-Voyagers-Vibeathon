@@ -109,7 +109,7 @@ export default function TravelingSphere() {
   return (
     <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
       <motion.div
-        className="absolute w-[600px] h-[600px] md:w-[800px] md:h-[800px]"
+        className="absolute w-[800px] h-[800px] md:w-[1000px] md:h-[1000px] lg:w-[1200px] lg:h-[1200px]"
         initial={{ opacity: 0, scale: 0.8 }}
         animate={{
           left: currentPos.x,
@@ -125,12 +125,19 @@ export default function TravelingSphere() {
         }}
         style={{ willChange: "transform" }}
       >
-        {/* Purple-Pink-Blue Gradient Sphere */}
-        <div className="absolute inset-0 rounded-full bg-gradient-to-br from-purple-400 via-pink-400 to-blue-400 opacity-30 blur-3xl" />
+        {/* Purple-Pink-Blue Gradient Sphere - More Vibrant */}
+        <div className="absolute inset-0 rounded-full bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 opacity-50 blur-3xl" />
         {/* Overlay gradient for better blend */}
-        <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-purple-500/20 via-transparent to-blue-500/20 blur-2xl" />
+        <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-purple-600/40 via-transparent to-blue-600/40 blur-2xl" />
         {/* Additional color layer */}
-        <div className="absolute inset-0 rounded-full bg-gradient-to-tl from-pink-500/25 via-transparent to-purple-500/25 blur-xl" />
+        <div className="absolute inset-0 rounded-full bg-gradient-to-tl from-pink-500/40 via-transparent to-purple-600/40 blur-xl" />
+        {/* Extra vibrant center glow */}
+        <div 
+          className="absolute inset-0 rounded-full blur-2xl" 
+          style={{
+            background: 'radial-gradient(circle, rgba(139, 92, 246, 0.6) 0%, rgba(236, 72, 153, 0.4) 50%, transparent 100%)'
+          }}
+        />
       </motion.div>
     </div>
   );

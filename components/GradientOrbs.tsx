@@ -23,13 +23,14 @@ export default function GradientOrbs() {
         }}
       />
       
-      {/* Pink accent orb - center - Reduced blur for performance */}
+      {/* Pink accent orb - center - More vibrant and spread out */}
       <div
-        className="gradient-orb w-[500px] h-[500px] bg-pink-300 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse-soft"
+        className="gradient-orb w-[800px] h-[800px] md:w-[1000px] md:h-[1000px] lg:w-[1200px] lg:h-[1200px] bg-pink-300 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse-soft"
         style={{
-          background: "radial-gradient(circle, rgba(251, 182, 206, 0.3) 0%, transparent 70%)",
+          background: "radial-gradient(circle, rgba(236, 72, 153, 0.6) 0%, rgba(251, 182, 206, 0.5) 30%, rgba(219, 39, 119, 0.3) 60%, transparent 80%)",
           willChange: "transform, opacity",
           transform: "translateZ(0)",
+          filter: "blur(80px)",
         }}
       />
     </div>

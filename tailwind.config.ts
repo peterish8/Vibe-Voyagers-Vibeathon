@@ -17,6 +17,18 @@ const config: Config = {
           600: "#7C3AED",
           700: "#6D28D9",
         },
+        blue: {
+          50: "#EFF6FF",
+          500: "#3B82F6",
+        },
+        green: {
+          50: "#F0FDF4",
+          500: "#10B981",
+        },
+        amber: {
+          50: "#FFFBEB",
+          500: "#F59E0B",
+        },
       },
       fontFamily: {
         serif: ["Crimson Pro", "serif"],
@@ -29,6 +41,7 @@ const config: Config = {
         "float": "float 25s ease-in-out infinite",
         "float-slow": "float 35s ease-in-out infinite",
         "pulse-soft": "pulse-soft 4s ease-in-out infinite",
+        "breathing": "breathing 3s ease-in-out infinite",
       },
       keyframes: {
         float: {
@@ -40,10 +53,13 @@ const config: Config = {
           "0%, 100%": { opacity: "0.3" },
           "50%": { opacity: "0.5" },
         },
+        "breathing": {
+          "0%, 100%": { opacity: "1" },
+          "50%": { opacity: "0.7" },
+        },
       },
     },
   },
   plugins: [],
 };
 export default config;
-

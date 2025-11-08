@@ -2,9 +2,11 @@
 
 import { motion } from "framer-motion";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function Hero() {
   const [email, setEmail] = useState("");
+  const router = useRouter();
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -155,8 +157,7 @@ export default function Hero() {
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                // Handle signup logic here
-                console.log("Form submitted with email:", email);
+                router.push("/app");
               }}
             >
               Get Started

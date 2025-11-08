@@ -9,7 +9,7 @@
   }
 
   body {
-    @apply bg-gradient-to-b from-purple-200 via-purple-100 to-purple-50 text-gray-900;
+    @apply bg-gradient-to-br from-[#FAFBFF] via-[#F5F7FF] to-[#FAFAFF] text-gray-900;
     font-family: var(--font-inter);
   }
 
@@ -20,17 +20,21 @@
 
 @layer utilities {
   .glass {
-    @apply bg-white/60 backdrop-blur-[12px] border border-white/30;
+    @apply bg-white/70 backdrop-blur-xl border border-white/30;
     box-shadow: 0 8px 32px rgba(139, 92, 246, 0.12);
     will-change: transform;
     transform: translateZ(0);
   }
 
   .glass-strong {
-    @apply bg-white/80 backdrop-blur-[12px] border border-white/40;
+    @apply bg-white/80 backdrop-blur-2xl border border-white/40;
     box-shadow: 0 8px 32px rgba(139, 92, 246, 0.15);
     will-change: transform;
     transform: translateZ(0);
+  }
+
+  .glass-chat {
+    @apply bg-white/60 backdrop-blur-2xl border border-white/30;
   }
 
   .gradient-orb {
@@ -46,12 +50,12 @@
   }
 
   .btn-primary {
-    @apply px-8 py-4 rounded-full font-semibold text-white;
-    @apply bg-gradient-to-r from-purple-600 to-blue-600;
+    @apply px-6 py-3 rounded-full font-semibold text-white;
+    @apply bg-gradient-to-r from-purple-500 to-purple-600;
     @apply shadow-lg shadow-purple-500/25;
     @apply transition-all duration-200 ease-out;
-    @apply hover:-translate-y-1 hover:scale-105 hover:shadow-xl hover:shadow-purple-500/30;
-    @apply active:translate-y-0 active:scale-95;
+    @apply hover:scale-105 hover:shadow-xl hover:shadow-purple-500/30;
+    @apply active:scale-95;
     @apply focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2;
     transform-origin: center;
     will-change: transform;
@@ -61,11 +65,11 @@
 
   .btn-glass {
     @apply px-6 py-3 rounded-full font-medium;
-    @apply bg-white/80 backdrop-blur-[12px] border border-white/40;
+    @apply bg-white/80 backdrop-blur-xl border border-white/40;
     @apply text-purple-600;
     @apply transition-all duration-200 ease-out;
-    @apply hover:-translate-y-1 hover:bg-white hover:border-purple-200 hover:shadow-lg;
-    @apply active:translate-y-0 active:scale-95;
+    @apply hover:bg-white hover:border-purple-200 hover:shadow-lg;
+    @apply active:scale-95;
     @apply focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2;
     transform-origin: center;
     will-change: transform;
@@ -73,8 +77,8 @@
   }
 
   .input-glass {
-    @apply w-full px-6 py-4 rounded-full;
-    @apply bg-white/50 backdrop-blur-[12px] border border-white/50;
+    @apply w-full px-4 py-3 rounded-2xl;
+    @apply bg-white/50 backdrop-blur-xl border border-white/50;
     @apply text-gray-900 placeholder:text-gray-500;
     @apply transition-all duration-200 ease-out;
     @apply focus:bg-white/70 focus:border-purple-500 focus:outline-none;
@@ -83,11 +87,22 @@
   }
 
   .card-glass {
-    @apply glass rounded-[32px] p-8 md:p-12;
+    @apply glass rounded-3xl p-6;
     @apply transition-all duration-200 ease-out;
-    @apply hover:-translate-y-1 hover:shadow-2xl hover:shadow-purple-500/20;
+    @apply hover:-translate-y-0.5 hover:shadow-2xl hover:shadow-purple-500/20;
     will-change: transform;
     transform: translateZ(0);
+  }
+
+  .nav-item {
+    @apply flex items-center gap-3 px-4 py-3 rounded-xl;
+    @apply text-gray-700 transition-all duration-200;
+    @apply hover:bg-purple-50/50;
+  }
+
+  .nav-item-active {
+    @apply bg-gradient-to-r from-purple-500 to-purple-600 text-white;
+    @apply shadow-lg shadow-purple-500/25;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -100,4 +115,3 @@
     }
   }
 }
-

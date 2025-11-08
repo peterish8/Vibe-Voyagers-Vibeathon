@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useRouter } from "next/navigation";
 
 export default function Navigation() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -80,6 +82,7 @@ export default function Navigation() {
               className="btn-glass"
               whileHover={{ scale: 1.05, y: -4 }}
               whileTap={{ scale: 0.95, y: 0 }}
+              onClick={() => router.push("/app")}
             >
               Get Started
             </motion.button>
@@ -137,7 +140,10 @@ export default function Navigation() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 }}
-                onClick={() => setMobileMenuOpen(false)}
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  router.push("/app");
+                }}
               >
                 Get Started
               </motion.button>
