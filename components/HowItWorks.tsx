@@ -60,7 +60,7 @@ const steps = [
 
 export default function HowItWorks() {
   const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: "-100px" });
+  const isInView = useInView(ref, { once: true, margin: "-50px", amount: 0.3 });
 
   return (
     <section
@@ -71,9 +71,9 @@ export default function HowItWorks() {
       <div className="max-w-7xl mx-auto">
         <motion.div
           className="text-center mb-20"
-          initial={{ opacity: 0, y: 30 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={isInView ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.6 }}
+          transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
         >
           <h2 className="text-4xl md:text-6xl font-serif mb-6 gradient-text">
             How it works
@@ -98,9 +98,9 @@ export default function HowItWorks() {
             <motion.div
               key={step.number}
               className="relative"
-              initial={{ opacity: 0, y: 50 }}
+              initial={{ opacity: 0, y: 30 }}
               animate={isInView ? { opacity: 1, y: 0 } : {}}
-              transition={{ duration: 0.6, delay: index * 0.2 }}
+              transition={{ duration: 0.4, delay: index * 0.1, ease: [0.4, 0, 0.2, 1] }}
             >
               <div className="card-glass text-center">
                 {/* Number Badge */}

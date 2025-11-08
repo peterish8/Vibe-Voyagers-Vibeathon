@@ -6,7 +6,7 @@ import { useRef, useState } from "react";
 
 export default function FinalCTA() {
   const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: "-100px" });
+  const isInView = useInView(ref, { once: true, margin: "-50px", amount: 0.3 });
   const [email, setEmail] = useState("");
 
   return (
@@ -32,9 +32,9 @@ export default function FinalCTA() {
 
       <div className="max-w-4xl mx-auto relative z-10 text-center">
         <motion.div
-          initial={{ opacity: 0, y: 30 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={isInView ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.6 }}
+          transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
         >
           <h2 className="text-4xl md:text-6xl font-serif mb-6 text-white">
             Download your new superpower today
@@ -47,9 +47,9 @@ export default function FinalCTA() {
           {/* Email Input */}
           <motion.div
             className="max-w-xl mx-auto"
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 15 }}
             animate={isInView ? { opacity: 1, y: 0 } : {}}
-            transition={{ delay: 0.2, duration: 0.6 }}
+            transition={{ delay: 0.1, duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
           >
             <form
               onSubmit={(e) => {

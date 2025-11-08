@@ -17,16 +17,74 @@ export default function Hero() {
   };
 
   const itemVariants = {
-    hidden: { opacity: 0, y: 30 },
+    hidden: { opacity: 0, y: 20 },
     visible: {
       opacity: 1,
       y: 0,
-      transition: { duration: 0.6, ease: "easeOut" },
+      transition: { duration: 0.4, ease: [0.4, 0, 0.2, 1] },
     },
   };
 
   return (
     <section className="relative min-h-screen flex items-center justify-center px-6 md:px-12 pt-32 pb-20 overflow-hidden">
+      {/* Gradient Sphere Background */}
+      <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
+        <motion.div
+          className="absolute top-1/2 left-1/2"
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ 
+            opacity: 1, 
+            scale: 1,
+            x: "-50%",
+            y: "-50%",
+          }}
+          transition={{
+            opacity: { duration: 1, ease: "easeOut" },
+            scale: { duration: 1, ease: "easeOut" },
+          }}
+          style={{
+            willChange: "transform",
+            transform: "translateZ(0)",
+          }}
+        >
+          {/* Main Gradient Sphere - Purple to Blue to Pink */}
+          <motion.div 
+            className="w-[600px] h-[600px] md:w-[800px] md:h-[800px] rounded-full"
+            animate={{
+              x: [0, 30, -20, 0],
+              y: [0, -30, 20, 0],
+            }}
+            transition={{
+              x: {
+                duration: 20,
+                repeat: Infinity,
+                ease: "easeInOut",
+              },
+              y: {
+                duration: 25,
+                repeat: Infinity,
+                ease: "easeInOut",
+              },
+            }}
+            style={{
+              background: "radial-gradient(circle, rgba(196, 181, 253, 0.4) 0%, rgba(147, 197, 253, 0.3) 30%, rgba(251, 182, 206, 0.2) 60%, transparent 100%)",
+              filter: "blur(80px)",
+              transform: "translateZ(0)",
+              willChange: "transform",
+            }}
+          />
+          {/* Overlay gradient for depth */}
+          <div 
+            className="absolute inset-0 rounded-full"
+            style={{
+              background: "radial-gradient(circle, rgba(139, 92, 246, 0.2) 0%, transparent 70%)",
+              filter: "blur(60px)",
+              transform: "translateZ(0)",
+            }}
+          />
+        </motion.div>
+      </div>
+
       <motion.div
         className="max-w-6xl mx-auto w-full text-center relative z-10"
         variants={containerVariants}

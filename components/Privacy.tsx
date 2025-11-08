@@ -54,7 +54,7 @@ const privacyFeatures = [
 
 export default function Privacy() {
   const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: "-100px" });
+  const isInView = useInView(ref, { once: true, margin: "-50px", amount: 0.3 });
 
   return (
     <section
@@ -82,9 +82,9 @@ export default function Privacy() {
         <div className="grid md:grid-cols-2 gap-16 items-center">
           {/* Left Side - Text */}
           <motion.div
-            initial={{ opacity: 0, x: -50 }}
+            initial={{ opacity: 0, x: -30 }}
             animate={isInView ? { opacity: 1, x: 0 } : {}}
-            transition={{ duration: 0.6 }}
+            transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
           >
             <h2 className="text-4xl md:text-6xl font-serif mb-6 text-white">
               Private by design
@@ -105,17 +105,17 @@ export default function Privacy() {
           {/* Right Side - Feature Cards */}
           <motion.div
             className="space-y-6"
-            initial={{ opacity: 0, x: 50 }}
+            initial={{ opacity: 0, x: 30 }}
             animate={isInView ? { opacity: 1, x: 0 } : {}}
-            transition={{ duration: 0.6, delay: 0.2 }}
+            transition={{ duration: 0.4, delay: 0.1, ease: [0.4, 0, 0.2, 1] }}
           >
             {privacyFeatures.map((feature, index) => (
               <motion.div
                 key={feature.title}
                 className="glass-strong rounded-3xl p-6 bg-white/5 border-white/10"
-                initial={{ opacity: 0, y: 30 }}
+                initial={{ opacity: 0, y: 20 }}
                 animate={isInView ? { opacity: 1, y: 0 } : {}}
-                transition={{ duration: 0.6, delay: 0.3 + index * 0.1 }}
+                transition={{ duration: 0.4, delay: 0.15 + index * 0.05, ease: [0.4, 0, 0.2, 1] }}
               >
                 <div className="flex items-start gap-4">
                   <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center text-white flex-shrink-0">

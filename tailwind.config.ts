@@ -26,19 +26,19 @@ const config: Config = {
         xs: "2px",
       },
       animation: {
-        "float": "float 20s ease-in-out infinite",
-        "float-slow": "float 30s ease-in-out infinite",
-        "pulse-soft": "pulse-soft 3s ease-in-out infinite",
+        "float": "float 25s ease-in-out infinite",
+        "float-slow": "float 35s ease-in-out infinite",
+        "pulse-soft": "pulse-soft 4s ease-in-out infinite",
       },
       keyframes: {
         float: {
-          "0%, 100%": { transform: "translate(0, 0) scale(1)" },
-          "33%": { transform: "translate(30px, -30px) scale(1.05)" },
-          "66%": { transform: "translate(-20px, 20px) scale(0.95)" },
+          "0%, 100%": { transform: "translate3d(0, 0, 0) scale(1)" },
+          "33%": { transform: "translate3d(20px, -20px, 0) scale(1.02)" },
+          "66%": { transform: "translate3d(-15px, 15px, 0) scale(0.98)" },
         },
         "pulse-soft": {
-          "0%, 100%": { opacity: "0.4" },
-          "50%": { opacity: "0.6" },
+          "0%, 100%": { opacity: "0.3" },
+          "50%": { opacity: "0.5" },
         },
       },
     },
