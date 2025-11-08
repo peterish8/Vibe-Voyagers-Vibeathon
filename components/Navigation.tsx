@@ -27,7 +27,9 @@ export default function Navigation() {
       animate={{ y: 0 }}
       transition={{ duration: 0.5 }}
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        scrolled ? "glass-strong py-4" : "bg-transparent py-6"
+        scrolled 
+          ? "bg-white/60 backdrop-blur-md border-b border-white/30 py-4 shadow-sm" 
+          : "bg-transparent py-6"
       }`}
     >
       <div className="max-w-7xl mx-auto px-6 md:px-12">

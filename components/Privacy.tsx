@@ -60,9 +60,25 @@ export default function Privacy() {
     <section
       id="privacy"
       ref={ref}
-      className="py-32 px-6 md:px-12 relative bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900"
+      className="py-32 px-6 md:px-12 relative bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 overflow-hidden"
     >
-      <div className="max-w-7xl mx-auto">
+      {/* Abstract White Circles - Globe POV */}
+      <div className="absolute inset-0 overflow-hidden">
+        {/* Large circle - top left */}
+        <div className="absolute -top-32 -left-32 w-96 h-96 bg-white rounded-full opacity-20 blur-3xl" />
+        {/* Medium circle - top right */}
+        <div className="absolute -top-20 -right-20 w-72 h-72 bg-white rounded-full opacity-20 blur-3xl" />
+        {/* Small circle - bottom left */}
+        <div className="absolute bottom-0 left-1/4 w-64 h-64 bg-white rounded-full opacity-20 blur-3xl" />
+        {/* Medium circle - center right */}
+        <div className="absolute top-1/2 -right-16 w-80 h-80 bg-white rounded-full opacity-20 blur-3xl" />
+        {/* Small circle - bottom right */}
+        <div className="absolute -bottom-24 right-1/3 w-56 h-56 bg-white rounded-full opacity-20 blur-3xl" />
+        {/* Medium circle - center left */}
+        <div className="absolute top-1/3 -left-24 w-72 h-72 bg-white rounded-full opacity-20 blur-3xl" />
+      </div>
+
+      <div className="max-w-7xl mx-auto relative z-10">
         <div className="grid md:grid-cols-2 gap-16 items-center">
           {/* Left Side - Text */}
           <motion.div

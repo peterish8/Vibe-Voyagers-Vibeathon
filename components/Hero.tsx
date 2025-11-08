@@ -26,9 +26,9 @@ export default function Hero() {
   };
 
   return (
-    <section className="relative min-h-screen flex items-center justify-center px-6 md:px-12 pt-32 pb-20">
+    <section className="relative min-h-screen flex items-center justify-center px-6 md:px-12 pt-32 pb-20 overflow-hidden">
       <motion.div
-        className="max-w-6xl mx-auto w-full text-center"
+        className="max-w-6xl mx-auto w-full text-center relative z-10"
         variants={containerVariants}
         initial="hidden"
         animate="visible"
@@ -62,7 +62,7 @@ export default function Hero() {
         {/* Email Input */}
         <motion.div
           variants={itemVariants}
-          className="max-w-xl mx-auto mb-8 relative"
+          className="max-w-xl mx-auto mb-8"
         >
           <form
             onSubmit={(e) => {
@@ -71,27 +71,35 @@ export default function Hero() {
               // Handle signup logic here
               console.log("Form submitted with email:", email);
             }}
-            className="relative"
+            className="flex items-center bg-white/50 backdrop-blur-[20px] border border-white/50 rounded-full pr-2 focus-within:bg-white/70 focus-within:border-purple-500 transition-all duration-300 ease-out"
+            action="#"
           >
             <input
               type="email"
               placeholder="Enter your email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="input-glass pr-32 text-left"
+              className="flex-1 px-6 py-4 bg-transparent text-gray-900 placeholder:text-gray-500 focus:outline-none"
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
                   e.stopPropagation();
+                  // Handle signup logic here
+                  console.log("Form submitted with email:", email);
                 }
               }}
             />
             <motion.button
-              type="submit"
-              className="absolute right-2 top-1/2 -translate-y-1/2 btn-primary px-6 py-3 text-sm"
-              whileHover={{ scale: 1.05, y: -4 }}
-              whileTap={{ scale: 0.95, y: 0 }}
-              style={{ transformOrigin: "center" }}
+              type="button"
+              className="px-6 py-2.5 rounded-full font-semibold text-white text-sm bg-gradient-to-r from-purple-600 to-blue-600 shadow-lg shadow-purple-500/25 transition-all duration-300 ease-out hover:scale-105 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                // Handle signup logic here
+                console.log("Form submitted with email:", email);
+              }}
             >
               Get Started
             </motion.button>
