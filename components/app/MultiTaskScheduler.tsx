@@ -37,6 +37,7 @@ export default function MultiTaskScheduler({
   const [dragOverSlot, setDragOverSlot] = useState<{ dayIndex: number; hour: number; minutes?: number } | null>(null);
   const [mounted, setMounted] = useState(false);
   const [isAllocating, setIsAllocating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const dayStart = startOfDay(selectedDate);
   const hours = Array.from({ length: 24 }, (_, i) => i); // 0 (midnight) to 23 (11 PM) - all 24 hours
   const { events, refetch } = useEvents(dayStart, addDays(dayStart, 1));
@@ -399,16 +400,29 @@ export default function MultiTaskScheduler({
     );
   };
 
-  const handleSave = async () => {
+  const handleSave = async (e?: React.MouseEvent) => {
+    // Prevent any event bubbling
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
+    console.log("[MultiTaskScheduler] handleSave called!");
+    console.log("[MultiTaskScheduler] scheduledTasks:", scheduledTasks);
+    
     const validScheduled = scheduledTasks.filter(
       (st) => st.startTime && st.endTime
     );
+
+    console.log("[MultiTaskScheduler] validScheduled:", validScheduled);
 
     if (validScheduled.length === 0) {
       alert("Please schedule at least one task");
       return;
     }
 
+    setIsSaving(true);
+    
     try {
       console.log(`[MultiTaskScheduler] Saving ${validScheduled.length} tasks to calendar`);
       console.log(`[MultiTaskScheduler] Tasks to save:`, validScheduled.map(st => ({
@@ -418,6 +432,7 @@ export default function MultiTaskScheduler({
       })));
       
       // Call the onSave callback which should save to calendar
+      console.log("[MultiTaskScheduler] Calling onSave callback...");
       await onSave(
         validScheduled.map((st) => ({
           task: st.task,
@@ -425,6 +440,7 @@ export default function MultiTaskScheduler({
           end: st.endTime!,
         }))
       );
+      console.log("[MultiTaskScheduler] onSave callback completed");
       
       // Refetch events to update the calendar view in this modal
       await refetch();
@@ -444,6 +460,8 @@ export default function MultiTaskScheduler({
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error("[MultiTaskScheduler] Full error:", error);
       alert(`Failed to save tasks: ${errorMessage}`);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -831,17 +849,34 @@ export default function MultiTaskScheduler({
           </div>
 
           {/* Actions */}
-          <div className="flex items-center justify-end gap-3">
+          <div className="flex items-center justify-end gap-3" onClick={(e) => e.stopPropagation()}>
             <button onClick={onClose} className="btn-glass">
               Cancel
             </button>
             <button
-              onClick={handleSave}
-              disabled={scheduledTasks.filter((st) => st.startTime && st.endTime).length === 0}
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log("[MultiTaskScheduler] Save button clicked!");
+                console.log("[MultiTaskScheduler] Button disabled state:", scheduledTasks.filter((st) => st.startTime && st.endTime).length === 0 || isSaving);
+                console.log("[MultiTaskScheduler] Scheduled tasks count:", scheduledTasks.length);
+                handleSave(e);
+              }}
+              disabled={scheduledTasks.filter((st) => st.startTime && st.endTime).length === 0 || isSaving}
               className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
-              <Save className="w-4 h-4" />
-              Save All ({scheduledTasks.filter((st) => st.startTime && st.endTime).length}/{tasks.length})
+              {isSaving ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  Save All ({scheduledTasks.filter((st) => st.startTime && st.endTime).length}/{tasks.length})
+                </>
+              )}
             </button>
           </div>
         </motion.div>

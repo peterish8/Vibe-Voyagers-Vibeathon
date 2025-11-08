@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, X, Bot, Target, BookOpen } from "lucide-react";
+import { Send, X, Bot, Target, BookOpen, Copy, Edit2, Check, X as XIcon } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { sendAIMessage, type AIMessage } from "@/lib/ai";
 import { parseAIResponse, type ParsedTask } from "@/lib/parse-tasks";
@@ -17,6 +17,8 @@ interface Message {
   content: string;
   timestamp: Date;
   parsedTasks?: ParsedTask[];
+  edited?: boolean;
+  editedAt?: Date;
 }
 
 // Character names for each mode
@@ -54,6 +56,14 @@ export default function ChatPanel() {
   const [reviewingMessageId, setReviewingMessageId] = useState<string | null>(
     null
   );
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState("");
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -137,6 +147,43 @@ export default function ChatPanel() {
       e.preventDefault();
       handleSend();
     }
+  };
+
+  const handleCopy = async (content: string, messageId: string) => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopiedMessageId(messageId);
+      setTimeout(() => setCopiedMessageId(null), 2000);
+    } catch (err) {
+      console.error("Failed to copy:", err);
+    }
+  };
+
+  const handleEdit = (message: Message) => {
+    setEditingMessageId(message.id);
+    setEditContent(message.content);
+  };
+
+  const handleSaveEdit = (messageId: string) => {
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === messageId
+          ? {
+              ...msg,
+              content: editContent,
+              edited: true,
+              editedAt: new Date(),
+            }
+          : msg
+      )
+    );
+    setEditingMessageId(null);
+    setEditContent("");
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMessageId(null);
+    setEditContent("");
   };
 
   const quickPrompts = {
@@ -303,29 +350,112 @@ export default function ChatPanel() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
-                className={`flex ${
+                className={`group flex items-start gap-2 ${
                   message.role === "user" ? "justify-end" : "justify-start"
                 }`}
               >
+                {message.role === "assistant" && (
+                  <div className="flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => handleCopy(message.content, message.id)}
+                      className="p-1.5 rounded-lg hover:bg-white/50 transition-colors text-gray-500 hover:text-gray-700"
+                      title="Copy message"
+                    >
+                      {copiedMessageId === message.id ? (
+                        <Check className="w-3.5 h-3.5 text-green-600" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  </div>
+                )}
+                
                 <div
-                  className={`max-w-[80%] rounded-3xl px-4 py-2.5 ${
+                  className={`max-w-[80%] rounded-3xl px-4 py-2.5 relative ${
                     message.role === "user"
                       ? `bg-gradient-to-r ${currentColors.userBubble} text-white rounded-br-sm`
                       : "glass-strong text-gray-700 rounded-bl-sm"
                   }`}
                 >
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                    {message.content}
-                  </p>
-                  <p className="text-xs mt-1 opacity-70" suppressHydrationWarning>
-                    {typeof window !== "undefined" 
-                      ? message.timestamp.toLocaleTimeString("en-US", {
-                          hour: "numeric",
-                          minute: "2-digit",
-                        })
-                      : ""}
-                  </p>
+                  {editingMessageId === message.id ? (
+                    <div className="space-y-2">
+                      <textarea
+                        value={editContent}
+                        onChange={(e) => setEditContent(e.target.value)}
+                        className="w-full bg-transparent border-none outline-none resize-none text-sm leading-relaxed"
+                        style={{
+                          color: message.role === "user" ? "white" : "inherit",
+                        }}
+                        rows={3}
+                        autoFocus
+                      />
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleSaveEdit(message.id)}
+                          className="p-1 rounded hover:bg-white/20 transition-colors"
+                          title="Save"
+                        >
+                          <Check className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={handleCancelEdit}
+                          className="p-1 rounded hover:bg-white/20 transition-colors"
+                          title="Cancel"
+                        >
+                          <XIcon className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                        {message.content}
+                      </p>
+                      <div className="flex items-center justify-between mt-1">
+                        <p className="text-xs opacity-70">
+                          {mounted ? (
+                            message.timestamp.toLocaleTimeString("en-US", {
+                              hour: "numeric",
+                              minute: "2-digit",
+                            })
+                          ) : (
+                            <span className="invisible">00:00 AM</span>
+                          )}
+                          {message.edited && (
+                            <span className="ml-1 italic">(edited)</span>
+                          )}
+                        </p>
+                        {message.role === "user" && (
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => handleEdit(message)}
+                              className="p-1 rounded hover:bg-white/20 transition-colors"
+                              title="Edit message"
+                            >
+                              <Edit2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
+
+                {message.role === "user" && (
+                  <div className="flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => handleCopy(message.content, message.id)}
+                      className="p-1.5 rounded-lg hover:bg-white/50 transition-colors text-gray-500 hover:text-gray-700"
+                      title="Copy message"
+                    >
+                      {copiedMessageId === message.id ? (
+                        <Check className="w-3.5 h-3.5 text-green-600" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  </div>
+                )}
               </motion.div>
 
               {/* Task Review UI */}
