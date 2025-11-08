@@ -12,19 +12,34 @@ import {
   isSameDay,
 } from "date-fns";
 import { useEvents } from "@/lib/hooks/use-events";
+import { Event } from "@/lib/hooks/use-events";
+import EventEditModal from "@/components/app/EventEditModal";
+import { useEffect } from "react";
 
 export default function CalendarPage() {
   const [view, setView] = useState<"week" | "month" | "day">("week");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isCreating, setIsCreating] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 });
   const hours = Array.from({ length: 17 }, (_, i) => i + 6); // 6 AM to 10 PM
 
   const weekEnd = addDays(weekStart, 6);
-  const { events, loading, createEvent, refetch } = useEvents(
+  const { events, loading, createEvent, updateEvent, deleteEvent, refetch } = useEvents(
     weekStart,
     weekEnd
   );
+
+  // Listen for events updated from other components
+  useEffect(() => {
+    const handleEventsUpdated = () => {
+      console.log("[CalendarPage] Events updated, refreshing...");
+      refetch();
+    };
+    
+    window.addEventListener('eventsUpdated', handleEventsUpdated);
+    return () => window.removeEventListener('eventsUpdated', handleEventsUpdated);
+  }, [refetch]);
 
   const [newEvent, setNewEvent] = useState({
     title: "",
@@ -234,6 +249,7 @@ export default function CalendarPage() {
                             return (
                               <div
                                 key={event.id}
+                                onClick={() => setEditingEvent(event)}
                                 className={`absolute left-0.5 right-0.5 rounded-md border z-10 ${
                                   categoryColors[event.category] ||
                                   categoryColors.personal
@@ -251,7 +267,7 @@ export default function CalendarPage() {
                                 title={`${event.title} (${format(
                                   eventStart,
                                   "h:mm a"
-                                )} - ${format(eventEnd, "h:mm a")})`}
+                                )} - ${format(eventEnd, "h:mm a")}) - Click to edit`}
                               >
                                 <span className="truncate leading-tight">
                                   {event.title}
@@ -410,6 +426,20 @@ export default function CalendarPage() {
             </div>
           </motion.div>
         </>
+      )}
+
+      {/* Edit Event Modal */}
+      {editingEvent && (
+        <EventEditModal
+          event={editingEvent}
+          isOpen={!!editingEvent}
+          onClose={() => setEditingEvent(null)}
+          selectedDate={new Date(editingEvent.start_ts)}
+          onEventUpdated={() => {
+            refetch();
+            setEditingEvent(null);
+          }}
+        />
       )}
     </div>
   );
