@@ -2,32 +2,105 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
-import { format, startOfWeek, addDays, addWeeks, subWeeks, isSameDay } from "date-fns";
+import { ChevronLeft, ChevronRight, Plus, X } from "lucide-react";
+import {
+  format,
+  startOfWeek,
+  addDays,
+  addWeeks,
+  subWeeks,
+  isSameDay,
+} from "date-fns";
+import { useEvents } from "@/lib/hooks/use-events";
 
 export default function CalendarPage() {
   const [view, setView] = useState<"week" | "month" | "day">("week");
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [isCreating, setIsCreating] = useState(false);
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 });
   const hours = Array.from({ length: 17 }, (_, i) => i + 6); // 6 AM to 10 PM
 
-  const events = [
-    { id: 1, title: "Deep Work", start: 9, end: 11, day: 0, category: "deep-work" },
-    { id: 2, title: "Team Meeting", start: 14, end: 15, day: 0, category: "study" },
-    { id: 3, title: "Gym", start: 18, end: 19, day: 2, category: "health" },
-  ];
+  const weekEnd = addDays(weekStart, 6);
+  const { events, loading, createEvent, refetch } = useEvents(
+    weekStart,
+    weekEnd
+  );
+
+  const [newEvent, setNewEvent] = useState({
+    title: "",
+    category: "personal" as
+      | "deep-work"
+      | "study"
+      | "health"
+      | "personal"
+      | "rest",
+    start_ts: "",
+    end_ts: "",
+    notes: "",
+  });
 
   const categoryColors = {
     "deep-work": "bg-purple-200 border-purple-300 text-purple-800",
-    "study": "bg-blue-200 border-blue-300 text-blue-800",
-    "health": "bg-green-200 border-green-300 text-green-800",
-    "personal": "bg-orange-200 border-orange-300 text-orange-800",
-    "rest": "bg-purple-100 border-purple-200 text-purple-800",
+    study: "bg-blue-200 border-blue-300 text-blue-800",
+    health: "bg-green-200 border-green-300 text-green-800",
+    personal: "bg-orange-200 border-orange-300 text-orange-800",
+    rest: "bg-purple-100 border-purple-200 text-purple-800",
   };
 
   const getCurrentHour = () => {
     const now = new Date();
     return now.getHours() + now.getMinutes() / 60;
+  };
+
+  const handleCreateEvent = async () => {
+    if (!newEvent.title.trim() || !newEvent.start_ts || !newEvent.end_ts)
+      return;
+
+    try {
+      await createEvent({
+        title: newEvent.title,
+        category: newEvent.category,
+        start_ts: newEvent.start_ts,
+        end_ts: newEvent.end_ts,
+        notes: newEvent.notes || null,
+      });
+
+      // Refetch events to ensure calendar updates
+      await refetch();
+
+      setNewEvent({
+        title: "",
+        category: "personal",
+        start_ts: "",
+        end_ts: "",
+        notes: "",
+      });
+      setIsCreating(false);
+    } catch (error) {
+      console.error("Error creating event:", error);
+    }
+  };
+
+  // Get events for a specific day and hour
+  const getEventsForSlot = (dayIndex: number, hour: number) => {
+    if (!events || events.length === 0) return [];
+    const day = addDays(weekStart, dayIndex);
+    return events.filter((event) => {
+      if (!event.start_ts || !event.end_ts) return false;
+      try {
+        const eventStart = new Date(event.start_ts);
+        const eventEnd = new Date(event.end_ts);
+        const slotStart = new Date(day);
+        slotStart.setHours(hour, 0, 0, 0);
+        const slotEnd = new Date(day);
+        slotEnd.setHours(hour + 1, 0, 0, 0);
+
+        return eventStart < slotEnd && eventEnd > slotStart;
+      } catch (error) {
+        console.error("Error parsing event date:", error);
+        return false;
+      }
+    });
   };
 
   return (
@@ -73,26 +146,37 @@ export default function CalendarPage() {
               <ChevronRight className="w-4 h-4" />
             </button>
             <span className="ml-4 text-lg font-semibold text-gray-900">
-              {format(weekStart, "MMM d")} - {format(addDays(weekStart, 6), "MMM d, yyyy")}
+              {format(weekStart, "MMM d")} -{" "}
+              {format(addDays(weekStart, 6), "MMM d, yyyy")}
             </span>
           </div>
         </div>
 
-        <button className="btn-primary flex items-center gap-2">
+        <button
+          onClick={() => setIsCreating(true)}
+          className="btn-primary flex items-center gap-2"
+        >
           <Plus className="w-4 h-4" />
           New Event
         </button>
       </div>
 
       {/* Calendar Grid */}
-      <div className="card-glass p-6">
-        <div className="grid grid-cols-8 gap-2">
+      <div className="card-glass p-6 overflow-hidden">
+        <div className="grid grid-cols-8 gap-1 min-h-0">
           {/* Time column */}
-          <div className="col-span-1">
-            <div className="h-12"></div>
+          <div className="col-span-1 border-r border-gray-200">
+            <div className="h-12 border-b border-gray-200"></div>
             {hours.map((hour) => (
-              <div key={hour} className="h-16 flex items-start justify-end pr-2 text-xs text-gray-500">
-                {hour === 12 ? "12 PM" : hour > 12 ? `${hour - 12} PM` : `${hour} AM`}
+              <div
+                key={hour}
+                className="h-16 flex items-start justify-end pr-3 text-xs text-gray-500 border-b border-gray-100"
+              >
+                {hour === 12
+                  ? "12 PM"
+                  : hour > 12
+                  ? `${hour - 12} PM`
+                  : `${hour} AM`}
               </div>
             ))}
           </div>
@@ -103,21 +187,28 @@ export default function CalendarPage() {
             const isToday = isSameDay(day, new Date());
             return (
               <div key={i} className="col-span-1">
-                <div className={`h-12 flex flex-col items-center justify-center border-b border-gray-200 ${
-                  isToday ? "bg-purple-50 rounded-t-lg" : ""
-                }`}>
-                  <div className="text-xs text-gray-500">{format(day, "EEE")}</div>
-                  <div className={`text-lg font-semibold ${isToday ? "text-purple-600" : "text-gray-900"}`}>
+                <div
+                  className={`h-12 flex flex-col items-center justify-center border-b border-gray-200 ${
+                    isToday ? "bg-purple-50 rounded-t-lg" : ""
+                  }`}
+                >
+                  <div className="text-xs text-gray-500">
+                    {format(day, "EEE")}
+                  </div>
+                  <div
+                    className={`text-lg font-semibold ${
+                      isToday ? "text-purple-600" : "text-gray-900"
+                    }`}
+                  >
                     {format(day, "d")}
                   </div>
                 </div>
                 <div className="relative">
                   {hours.map((hour) => {
-                    const slotEvents = events.filter(
-                      (e) => e.day === i && e.start <= hour && e.end > hour
-                    );
-                    const isPast = day < new Date() || (isToday && hour < getCurrentHour());
-                    
+                    const slotEvents = getEventsForSlot(i, hour);
+                    const isPast =
+                      day < new Date() || (isToday && hour < getCurrentHour());
+
                     return (
                       <div
                         key={hour}
@@ -125,23 +216,66 @@ export default function CalendarPage() {
                           isPast ? "opacity-40" : ""
                         }`}
                       >
-                        {slotEvents.map((event) => (
-                          <motion.div
-                            key={event.id}
-                            whileHover={{ scale: 1.02 }}
-                            className={`absolute left-1 right-1 top-0 bottom-0 rounded-lg border ${
-                              categoryColors[event.category as keyof typeof categoryColors]
-                            } flex items-center px-2 text-xs font-medium cursor-pointer`}
-                            style={{
-                              height: `${((event.end - event.start) / 1) * 100}%`,
-                            }}
-                          >
-                            {event.title}
-                          </motion.div>
-                        ))}
-                        {isToday && hour <= getCurrentHour() && hour + 1 > getCurrentHour() && (
-                          <div className="absolute left-0 right-0 top-0 h-0.5 bg-purple-500 animate-pulse" />
-                        )}
+                        {slotEvents.map((event) => {
+                          if (!event.start_ts || !event.end_ts) return null;
+                          try {
+                            const eventStart = new Date(event.start_ts);
+                            const eventEnd = new Date(event.end_ts);
+                            const startHour =
+                              eventStart.getHours() +
+                              eventStart.getMinutes() / 60;
+                            const endHour =
+                              eventEnd.getHours() + eventEnd.getMinutes() / 60;
+                            const duration = endHour - startHour;
+                            const topOffset = startHour - hour;
+
+                            if (topOffset < 0 || topOffset >= 1) return null;
+
+                            return (
+                              <div
+                                key={event.id}
+                                className={`absolute left-0.5 right-0.5 rounded-md border z-10 ${
+                                  categoryColors[event.category] ||
+                                  categoryColors.personal
+                                } flex items-start px-1.5 py-1 text-xs font-medium cursor-pointer transition-transform hover:scale-105 overflow-hidden`}
+                                style={{
+                                  top: `${Math.max(0, topOffset * 64)}px`,
+                                  height: `${Math.max(
+                                    16,
+                                    Math.min(
+                                      duration,
+                                      1 - Math.max(0, topOffset)
+                                    ) * 64
+                                  )}px`,
+                                }}
+                                title={`${event.title} (${format(
+                                  eventStart,
+                                  "h:mm a"
+                                )} - ${format(eventEnd, "h:mm a")})`}
+                              >
+                                <span className="truncate leading-tight">
+                                  {event.title}
+                                </span>
+                              </div>
+                            );
+                          } catch (error) {
+                            console.error("Error rendering event:", error);
+                            return null;
+                          }
+                        })}
+                        {isToday &&
+                          hour <= getCurrentHour() &&
+                          hour + 1 > getCurrentHour() && (
+                            <div
+                              className="absolute left-0 right-0 h-0.5 bg-red-500 z-20"
+                              style={{
+                                top: `${Math.max(
+                                  0,
+                                  (getCurrentHour() - hour) * 64
+                                )}px`,
+                              }}
+                            />
+                          )}
                       </div>
                     );
                   })}
@@ -151,7 +285,132 @@ export default function CalendarPage() {
           })}
         </div>
       </div>
+
+      {/* Create Event Modal */}
+      {isCreating && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50"
+            onClick={() => setIsCreating(false)}
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="glass-strong rounded-3xl p-8 max-w-md w-full">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-semibold text-gray-900">
+                  New Event
+                </h2>
+                <button
+                  onClick={() => setIsCreating(false)}
+                  className="p-2 rounded-lg hover:bg-white/50"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Title *
+                  </label>
+                  <input
+                    type="text"
+                    value={newEvent.title}
+                    onChange={(e) =>
+                      setNewEvent({ ...newEvent, title: e.target.value })
+                    }
+                    className="w-full input-glass"
+                    placeholder="Event title"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Category
+                  </label>
+                  <select
+                    value={newEvent.category}
+                    onChange={(e) =>
+                      setNewEvent({
+                        ...newEvent,
+                        category: e.target.value as any,
+                      })
+                    }
+                    className="w-full input-glass"
+                  >
+                    <option value="personal">Personal</option>
+                    <option value="deep-work">Deep Work</option>
+                    <option value="study">Study</option>
+                    <option value="health">Health</option>
+                    <option value="rest">Rest</option>
+                  </select>
+                </div>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Start *
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={newEvent.start_ts}
+                      onChange={(e) =>
+                        setNewEvent({ ...newEvent, start_ts: e.target.value })
+                      }
+                      className="w-full input-glass"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      End *
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={newEvent.end_ts}
+                      onChange={(e) =>
+                        setNewEvent({ ...newEvent, end_ts: e.target.value })
+                      }
+                      className="w-full input-glass"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Notes
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={newEvent.notes}
+                    onChange={(e) =>
+                      setNewEvent({ ...newEvent, notes: e.target.value })
+                    }
+                    className="w-full input-glass"
+                    placeholder="Optional notes..."
+                  />
+                </div>
+                <div className="flex gap-4">
+                  <button
+                    onClick={handleCreateEvent}
+                    className="btn-primary flex-1"
+                  >
+                    Create Event
+                  </button>
+                  <button
+                    onClick={() => setIsCreating(false)}
+                    className="btn-glass flex-1"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </>
+      )}
     </div>
   );
 }
-

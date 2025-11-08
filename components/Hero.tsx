@@ -2,11 +2,11 @@
 
 import { motion } from "framer-motion";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { signInWithGoogle } from "@/lib/auth";
 
 export default function Hero() {
   const [email, setEmail] = useState("");
-  const router = useRouter();
+  const [isLoading, setIsLoading] = useState(false);
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -151,16 +151,23 @@ export default function Hero() {
             />
             <motion.button
               type="button"
-              className="px-6 py-2.5 rounded-full font-semibold text-white text-sm bg-gradient-to-r from-purple-600 to-blue-600 shadow-lg shadow-purple-500/25 transition-all duration-300 ease-out hover:scale-105 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={(e) => {
+              disabled={isLoading}
+              className="px-6 py-2.5 rounded-full font-semibold text-white text-sm bg-gradient-to-r from-purple-600 to-blue-600 shadow-lg shadow-purple-500/25 transition-all duration-300 ease-out hover:scale-105 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              whileHover={{ scale: isLoading ? 1 : 1.05 }}
+              whileTap={{ scale: isLoading ? 1 : 0.95 }}
+              onClick={async (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                router.push("/app");
+                setIsLoading(true);
+                try {
+                  await signInWithGoogle();
+                } catch (error) {
+                  console.error("Sign in error:", error);
+                  setIsLoading(false);
+                }
               }}
             >
-              Get Started
+              {isLoading ? "Signing in..." : "Get Started"}
             </motion.button>
           </form>
         </motion.div>

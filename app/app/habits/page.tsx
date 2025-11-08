@@ -2,48 +2,82 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Plus, MoreVertical } from "lucide-react";
+import { Plus, MoreVertical, X } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from "recharts";
-
-interface Habit {
-  id: number;
-  name: string;
-  completed: boolean;
-  streak: number;
-  active: boolean;
-}
+import { useHabits } from "@/lib/hooks/use-habits";
+import { format, subDays, startOfDay } from "date-fns";
 
 export default function HabitsPage() {
-  const [habits, setHabits] = useState<Habit[]>([
-    { id: 1, name: "Morning Meditation", completed: true, streak: 5, active: true },
-    { id: 2, name: "Exercise", completed: true, streak: 3, active: true },
-    { id: 3, name: "Read 30 minutes", completed: false, streak: 7, active: true },
-    { id: 4, name: "No phone before bed", completed: true, streak: 2, active: true },
-    { id: 5, name: "Journal", completed: true, streak: 3, active: true },
-    { id: 6, name: "Drink 8 glasses water", completed: false, streak: 1, active: true },
-  ]);
+  const today = new Date();
+  const { habits, logs, loading, createHabit, updateHabit, toggleHabitLog, getHabitCompletionForDate } = useHabits();
+  const [isCreating, setIsCreating] = useState(false);
+  const [newHabitName, setNewHabitName] = useState("");
 
-  const completedCount = habits.filter((h) => h.completed).length;
-  const totalCount = habits.length;
-  const score = Math.round((completedCount / totalCount) * 100);
+  const habitStats = getHabitCompletionForDate(today);
+  const activeHabits = habits.filter(h => h.is_active);
 
-  const toggleHabit = (id: number) => {
-    setHabits(
-      habits.map((h) =>
-        h.id === id ? { ...h, completed: !h.completed, streak: h.completed ? h.streak : h.streak + 1 } : h
-      )
-    );
+  // Get completion status for each habit today
+  const getHabitStatus = (habitId: string) => {
+    const dateStr = today.toISOString().split('T')[0];
+    const log = logs.find(l => l.habit_id === habitId && l.log_date === dateStr);
+    return log?.completed || false;
   };
 
-  const chartData = [
-    { date: "Mon", score: 67 },
-    { date: "Tue", score: 83 },
-    { date: "Wed", score: 50 },
-    { date: "Thu", score: 100 },
-    { date: "Fri", score: 83 },
-    { date: "Sat", score: 67 },
-    { date: "Sun", score: 75 },
-  ];
+  // Get streak for a habit (simplified - counts consecutive completed days)
+  const getHabitStreak = (habitId: string) => {
+    let streak = 0;
+    let checkDate = new Date(today);
+    
+    while (true) {
+      const dateStr = checkDate.toISOString().split('T')[0];
+      const log = logs.find(l => l.habit_id === habitId && l.log_date === dateStr);
+      if (log?.completed) {
+        streak++;
+        checkDate = subDays(checkDate, 1);
+      } else {
+        break;
+      }
+    }
+    
+    return streak;
+  };
+
+  // Generate chart data for last 7 days
+  const chartData = Array.from({ length: 7 }, (_, i) => {
+    const date = subDays(today, 6 - i);
+    const stats = getHabitCompletionForDate(date);
+    return {
+      date: format(date, "EEE"),
+      score: stats.percentage,
+    };
+  });
+
+  const handleCreateHabit = async () => {
+    if (!newHabitName.trim()) return;
+    
+    try {
+      await createHabit({
+        name: newHabitName,
+        is_active: true,
+        target_days_per_week: 7,
+      });
+      setNewHabitName("");
+      setIsCreating(false);
+    } catch (error) {
+      console.error("Error creating habit:", error);
+    }
+  };
+
+  const handleToggleHabit = async (habitId: string) => {
+    const currentStatus = getHabitStatus(habitId);
+    try {
+      await toggleHabitLog(habitId, today, !currentStatus);
+    } catch (error) {
+      console.error("Error toggling habit:", error);
+    }
+  };
+
+  // Don't block rendering - show content immediately with loading indicators
 
   return (
     <div className="max-w-5xl mx-auto px-8 py-12">
@@ -56,12 +90,12 @@ export default function HabitsPage() {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm text-gray-600 mb-2">
-              {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+              {format(today, "EEEE, MMMM d, yyyy")}
             </p>
             <div className="flex items-baseline gap-2">
-              <span className="text-6xl font-bold text-gray-900">{score}%</span>
+              <span className="text-6xl font-bold text-gray-900">{habitStats.percentage}%</span>
               <span className="text-lg text-gray-600">
-                {completedCount} of {totalCount} habits completed
+                {habitStats.completed} of {habitStats.total} habits completed
               </span>
             </div>
           </div>
@@ -83,7 +117,7 @@ export default function HabitsPage() {
                 stroke="currentColor"
                 strokeWidth="8"
                 fill="none"
-                strokeDasharray={`${(score / 100) * 352} 352`}
+                strokeDasharray={`${(habitStats.percentage / 100) * 352} 352`}
                 className="text-purple-600 transition-all duration-500"
                 strokeLinecap="round"
               />
@@ -96,138 +130,160 @@ export default function HabitsPage() {
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-gray-900">Today's Habits</h2>
-          <button className="btn-primary flex items-center gap-2">
+          <button 
+            onClick={() => setIsCreating(true)}
+            className="btn-primary flex items-center gap-2"
+          >
             <Plus className="w-4 h-4" />
             Add Habit
           </button>
         </div>
-        <div className="space-y-3">
-          {habits.map((habit) => (
-            <motion.div
-              key={habit.id}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              whileHover={{ x: 4 }}
-              className={`card-glass flex items-center gap-4 p-4 ${
-                habit.completed ? "bg-green-50/50 border-green-200/50" : ""
-              }`}
-            >
-              <button
-                onClick={() => toggleHabit(habit.id)}
-                className={`w-8 h-8 rounded border-2 flex items-center justify-center transition-all ${
-                  habit.completed
-                    ? "bg-green-500 border-green-500"
-                    : "border-gray-300 hover:border-purple-500"
-                }`}
-              >
-                {habit.completed && (
-                  <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    className="text-white text-lg"
+        {activeHabits.length > 0 ? (
+          <div className="space-y-3">
+            {activeHabits.map((habit) => {
+              const completed = getHabitStatus(habit.id);
+              const streak = getHabitStreak(habit.id);
+              
+              return (
+                <motion.div
+                  key={habit.id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  whileHover={{ x: 4 }}
+                  className={`card-glass flex items-center gap-4 p-4 ${
+                    completed ? "bg-green-50/50 border-green-200/50" : ""
+                  }`}
+                >
+                  <button
+                    onClick={() => handleToggleHabit(habit.id)}
+                    className={`w-8 h-8 rounded border-2 flex items-center justify-center transition-all ${
+                      completed
+                        ? "bg-green-500 border-green-500"
+                        : "border-gray-300 hover:border-purple-500"
+                    }`}
                   >
-                    ✓
-                  </motion.div>
-                )}
-              </button>
-              <div className="flex-1">
-                <p className={`font-medium ${habit.completed ? "text-gray-600 line-through" : "text-gray-900"}`}>
-                  {habit.name}
-                </p>
-                <p className="text-sm text-gray-500 mt-0.5">
-                  {habit.streak} days 🔥
-                </p>
-              </div>
-              <button className="p-2 rounded-lg hover:bg-white/50">
-                <MoreVertical className="w-4 h-4 text-gray-500" />
-              </button>
-            </motion.div>
-          ))}
-        </div>
+                    {completed && (
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        className="text-white text-lg"
+                      >
+                        ✓
+                      </motion.div>
+                    )}
+                  </button>
+                  <div className="flex-1">
+                    <p className={`font-medium ${completed ? "text-gray-600 line-through" : "text-gray-900"}`}>
+                      {habit.name}
+                    </p>
+                    <p className="text-sm text-gray-500 mt-0.5">
+                      {streak} days 🔥
+                    </p>
+                  </div>
+                  <button className="p-2 rounded-lg hover:bg-white/50">
+                    <MoreVertical className="w-4 h-4 text-gray-500" />
+                  </button>
+                </motion.div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="card-glass p-8 text-center text-gray-500">
+            No habits yet. Create your first one!
+          </div>
+        )}
       </div>
 
       {/* Trend Graph */}
-      <div className="card-glass mb-8">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Your Consistency</h3>
-        <div className="flex gap-2 mb-4">
-          {["7 days", "30 days", "90 days"].map((period) => (
-            <button
-              key={period}
-              className="px-3 py-1.5 rounded-lg text-sm glass hover:bg-white/80"
-            >
-              {period}
-            </button>
-          ))}
+      {activeHabits.length > 0 && (
+        <div className="card-glass mb-8">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Your Consistency</h3>
+          <ResponsiveContainer width="100%" height={200}>
+            <AreaChart data={chartData}>
+              <defs>
+                <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+              <XAxis dataKey="date" stroke="#6B7280" />
+              <YAxis stroke="#6B7280" domain={[0, 100]} />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "white",
+                  border: "1px solid #E5E7EB",
+                  borderRadius: "12px",
+                }}
+              />
+              <Area
+                type="monotone"
+                dataKey="score"
+                stroke="#8B5CF6"
+                strokeWidth={2}
+                fillOpacity={1}
+                fill="url(#colorScore)"
+              />
+            </AreaChart>
+          </ResponsiveContainer>
         </div>
-        <ResponsiveContainer width="100%" height={200}>
-          <AreaChart data={chartData}>
-            <defs>
-              <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-            <XAxis dataKey="date" stroke="#6B7280" />
-            <YAxis stroke="#6B7280" domain={[0, 100]} />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: "white",
-                border: "1px solid #E5E7EB",
-                borderRadius: "12px",
-              }}
-            />
-            <Area
-              type="monotone"
-              dataKey="score"
-              stroke="#8B5CF6"
-              strokeWidth={2}
-              fillOpacity={1}
-              fill="url(#colorScore)"
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
+      )}
 
-      {/* Calendar Grid */}
-      <div className="card-glass">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">30-Day View</h3>
-        <div className="grid grid-cols-7 gap-2">
-          {Array.from({ length: 30 }, (_, i) => {
-            const day = i + 1;
-            const status = day % 3 === 0 ? "full" : day % 3 === 1 ? "partial" : "missed";
-            return (
-              <div
-                key={day}
-                className={`aspect-square rounded-lg flex items-center justify-center text-xs font-medium ${
-                  status === "full"
-                    ? "bg-green-500 text-white"
-                    : status === "partial"
-                    ? "bg-amber-400 text-white"
-                    : "bg-gray-200 text-gray-500"
-                }`}
-              >
-                {day}
+      {/* Create Habit Modal */}
+      {isCreating && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50"
+            onClick={() => setIsCreating(false)}
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="glass-strong rounded-3xl p-8 max-w-md w-full">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-semibold text-gray-900">New Habit</h2>
+                <button
+                  onClick={() => setIsCreating(false)}
+                  className="p-2 rounded-lg hover:bg-white/50"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-            );
-          })}
-        </div>
-        <div className="flex items-center gap-4 mt-4 text-xs text-gray-600">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded bg-green-500" />
-            <span>All completed</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded bg-amber-400" />
-            <span>Partial</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded bg-gray-200" />
-            <span>Missed</span>
-          </div>
-        </div>
-      </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Habit Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={newHabitName}
+                    onChange={(e) => setNewHabitName(e.target.value)}
+                    className="w-full input-glass"
+                    placeholder="e.g., Morning Meditation"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleCreateHabit();
+                    }}
+                  />
+                </div>
+                <div className="flex gap-4">
+                  <button onClick={handleCreateHabit} className="btn-primary flex-1">
+                    Create Habit
+                  </button>
+                  <button onClick={() => setIsCreating(false)} className="btn-glass flex-1">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </>
+      )}
     </div>
   );
 }
-

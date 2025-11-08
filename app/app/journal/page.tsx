@@ -1,17 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Search, Mic, Save, Check } from "lucide-react";
 import { format } from "date-fns";
-
-interface JournalEntry {
-  id: number;
-  date: Date;
-  mood: "happy" | "neutral" | "sad";
-  content: string;
-  tags: string[];
-}
+import { useJournal } from "@/lib/hooks/use-journal";
 
 export default function JournalPage() {
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -19,19 +12,47 @@ export default function JournalPage() {
   const [content, setContent] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [entries] = useState<JournalEntry[]>([
-    {
-      id: 1,
-      date: new Date(),
-      mood: "happy",
-      content: "Had a great day today! Finished my project and felt really accomplished.",
-      tags: ["work", "accomplishment"],
-    },
-  ]);
+  const [searchQuery, setSearchQuery] = useState("");
 
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const { entries, loading, getEntryByDate, createOrUpdateEntry } =
+    useJournal();
+
+  // Load entry for selected date
+  useEffect(() => {
+    const loadEntry = async () => {
+      try {
+        const entry = await getEntryByDate(selectedDate);
+        if (entry) {
+          setContent(entry.content_text);
+          setMood(entry.mood);
+        } else {
+          setContent("");
+          setMood("neutral");
+        }
+      } catch (error) {
+        console.error("Error loading entry:", error);
+      }
+    };
+
+    loadEntry();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate]);
+
+  const handleSave = async () => {
+    try {
+      const dateStr = selectedDate.toISOString().split("T")[0];
+      await createOrUpdateEntry({
+        entry_date: dateStr,
+        content_text: content,
+        mood,
+        tags: [],
+      });
+
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (error) {
+      console.error("Error saving entry:", error);
+    }
   };
 
   const moods = [
@@ -40,58 +61,79 @@ export default function JournalPage() {
     { emoji: "😞", value: "sad" as const, label: "Sad" },
   ];
 
+  const filteredEntries = entries.filter((entry) => {
+    if (!searchQuery) return true;
+    return entry.content_text.toLowerCase().includes(searchQuery.toLowerCase());
+  });
+
   return (
     <div className="flex h-[calc(100vh-4rem)]">
       {/* Left Sidebar - Entry List */}
       <div className="w-[30%] bg-white/50 border-r border-white/30 p-6 overflow-y-auto">
         <div className="mb-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Your Journal</h2>
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">
+            Your Journal
+          </h2>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
               placeholder="Search entries..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 rounded-xl input-glass"
             />
           </div>
-          <div className="flex gap-2 mt-3">
-            {["All", "Last 7 Days", "Last 30 Days"].map((filter) => (
-              <button
-                key={filter}
-                className="px-3 py-1.5 rounded-lg text-xs glass hover:bg-white/80"
-              >
-                {filter}
-              </button>
-            ))}
-          </div>
         </div>
 
-        <div className="space-y-3">
-          {entries.map((entry) => (
-            <motion.div
-              key={entry.id}
-              whileHover={{ scale: 1.02 }}
-              className="card-glass p-4 cursor-pointer"
-            >
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-sm font-semibold text-gray-900">
-                  {format(entry.date, "MMM d, yyyy")}
-                </div>
-                <span className="text-2xl">{moods.find(m => m.value === entry.mood)?.emoji}</span>
-              </div>
-              <p className="text-sm text-gray-600 line-clamp-2 mb-2">{entry.content}</p>
-              <div className="flex gap-1 flex-wrap">
-                {entry.tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="px-2 py-0.5 rounded-full text-xs bg-purple-50 text-purple-700"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            </motion.div>
-          ))}
+                <div className="space-y-3">
+                  {filteredEntries.length > 0 ? (
+            filteredEntries.map((entry) => {
+              const entryDate = new Date(entry.entry_date);
+              const isSelected =
+                format(entryDate, "yyyy-MM-dd") ===
+                format(selectedDate, "yyyy-MM-dd");
+
+              return (
+                <motion.div
+                  key={entry.id}
+                  whileHover={{ scale: 1.02 }}
+                  onClick={() => setSelectedDate(entryDate)}
+                  className={`card-glass p-4 cursor-pointer ${
+                    isSelected ? "bg-purple-50 border-purple-200" : ""
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-sm font-semibold text-gray-900">
+                      {format(entryDate, "MMM d, yyyy")}
+                    </div>
+                    <span className="text-2xl">
+                      {moods.find((m) => m.value === entry.mood)?.emoji}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-600 line-clamp-2 mb-2">
+                    {entry.content_text}
+                  </p>
+                  {entry.tags.length > 0 && (
+                    <div className="flex gap-1 flex-wrap">
+                      {entry.tags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="px-2 py-0.5 rounded-full text-xs bg-purple-50 text-purple-700"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </motion.div>
+              );
+            })
+          ) : (
+            <div className="text-center text-gray-500 text-sm py-8">
+              {searchQuery ? "No entries found" : "No journal entries yet"}
+            </div>
+          )}
         </div>
       </div>
 
@@ -114,7 +156,9 @@ export default function JournalPage() {
                   whileTap={{ scale: 0.9 }}
                   onClick={() => setMood(m.value)}
                   className={`text-4xl p-2 rounded-xl transition-all ${
-                    mood === m.value ? "bg-purple-100 scale-110" : "hover:bg-gray-100"
+                    mood === m.value
+                      ? "bg-purple-100 scale-110"
+                      : "hover:bg-gray-100"
                   }`}
                   title={m.label}
                 >
@@ -127,9 +171,7 @@ export default function JournalPage() {
             <button
               onClick={() => setIsRecording(!isRecording)}
               className={`px-4 py-2 rounded-xl flex items-center gap-2 ${
-                isRecording
-                  ? "bg-red-500 text-white"
-                  : "btn-glass"
+                isRecording ? "bg-red-500 text-white" : "btn-glass"
               }`}
             >
               <Mic className="w-4 h-4" />
@@ -158,8 +200,12 @@ export default function JournalPage() {
               <h3 className="font-semibold text-gray-900 mb-3">AI Insights</h3>
               <ul className="space-y-2 text-sm text-gray-700">
                 <li>• You had a productive day with good energy levels</li>
-                <li>• Consider scheduling similar tasks during your peak hours</li>
-                <li>• Tomorrow's focus: Continue momentum on current projects</li>
+                <li>
+                  • Consider scheduling similar tasks during your peak hours
+                </li>
+                <li>
+                  • Tomorrow&apos;s focus: Continue momentum on current projects
+                </li>
               </ul>
               <button className="mt-4 text-sm text-purple-600 hover:text-purple-700">
                 Regenerate
@@ -181,7 +227,8 @@ export default function JournalPage() {
             </div>
             <button
               onClick={handleSave}
-              className="btn-primary flex items-center gap-2"
+              disabled={!content.trim()}
+              className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save className="w-4 h-4" />
               Save Entry
@@ -192,4 +239,3 @@ export default function JournalPage() {
     </div>
   );
 }
-

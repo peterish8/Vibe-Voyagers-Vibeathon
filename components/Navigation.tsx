@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useRouter } from "next/navigation";
+import { signInWithGoogle } from "@/lib/auth";
 
 export default function Navigation() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const router = useRouter();
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -79,12 +79,21 @@ export default function Navigation() {
           {/* CTA Button */}
           <div className="hidden md:block">
             <motion.button
-              className="btn-glass"
-              whileHover={{ scale: 1.05, y: -4 }}
-              whileTap={{ scale: 0.95, y: 0 }}
-              onClick={() => router.push("/app")}
+              className="btn-glass disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isLoading}
+              whileHover={{ scale: isLoading ? 1 : 1.05, y: isLoading ? 0 : -4 }}
+              whileTap={{ scale: isLoading ? 1 : 0.95, y: 0 }}
+              onClick={async () => {
+                setIsLoading(true);
+                try {
+                  await signInWithGoogle();
+                } catch (error) {
+                  console.error("Sign in error:", error);
+                  setIsLoading(false);
+                }
+              }}
             >
-              Get Started
+              {isLoading ? "Signing in..." : "Get Started"}
             </motion.button>
           </div>
 
@@ -136,16 +145,23 @@ export default function Navigation() {
                 </motion.a>
               ))}
               <motion.button
-                className="btn-primary w-full mt-4"
+                className="btn-primary w-full mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isLoading}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 }}
-                onClick={() => {
+                onClick={async () => {
                   setMobileMenuOpen(false);
-                  router.push("/app");
+                  setIsLoading(true);
+                  try {
+                    await signInWithGoogle();
+                  } catch (error) {
+                    console.error("Sign in error:", error);
+                    setIsLoading(false);
+                  }
                 }}
               >
-                Get Started
+                {isLoading ? "Signing in..." : "Get Started"}
               </motion.button>
             </div>
           </motion.div>

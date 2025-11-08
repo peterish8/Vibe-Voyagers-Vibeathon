@@ -87,7 +87,7 @@
   }
 
   .card-glass {
-    @apply glass rounded-3xl p-6;
+    @apply glass rounded-3xl p-8;
     @apply transition-all duration-200 ease-out;
     @apply hover:-translate-y-0.5 hover:shadow-2xl hover:shadow-purple-500/20;
     will-change: transform;
@@ -103,6 +103,15 @@
   .nav-item-active {
     @apply bg-gradient-to-r from-purple-500 to-purple-600 text-white;
     @apply shadow-lg shadow-purple-500/25;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
   }
 
   @media (prefers-reduced-motion: reduce) {
