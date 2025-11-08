@@ -97,7 +97,7 @@ export default function Hero() {
         <motion.div variants={itemVariants} className="mb-8">
           <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass text-sm font-medium text-purple-700">
             <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-            Coming soon to Windows
+            New features coming soon
           </span>
         </motion.div>
 
@@ -170,31 +170,6 @@ export default function Hero() {
               {isLoading ? "Signing in..." : "Get Started"}
             </motion.button>
           </form>
-        </motion.div>
-
-        {/* Platform Badge */}
-        <motion.div
-          variants={itemVariants}
-          className="flex items-center justify-center gap-6 text-sm text-gray-500 mb-16"
-        >
-          <span className="flex items-center gap-2">
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M10 2L3 7v11h14V7l-7-5z" />
-            </svg>
-            Mac
-          </span>
-          <span className="flex items-center gap-2">
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M10 2L3 7v11h14V7l-7-5z" />
-            </svg>
-            iPhone
-          </span>
-          <span className="flex items-center gap-2">
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M10 2L3 7v11h14V7l-7-5z" />
-            </svg>
-            iPad
-          </span>
         </motion.div>
 
         {/* Product Mockup */}
