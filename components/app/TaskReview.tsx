@@ -347,30 +347,45 @@ export default function TaskReview({ tasks, onApply, onCancel }: TaskReviewProps
               const { data: { user } } = await supabase.auth.getUser();
               if (!user) throw new Error("Not authenticated");
 
-              console.log(`[TaskReview] Saving ${scheduledTasks.length} scheduled tasks`);
+              console.log(`[TaskReview] Saving ${scheduledTasks.length} scheduled tasks to calendar`);
 
               // Create events for all scheduled tasks
-              const insertPromises = scheduledTasks.map((st) =>
-                supabase.from("events").insert({
+              const insertPromises = scheduledTasks.map((st) => {
+                const eventData = {
                   user_id: user.id,
                   title: st.task.title,
-                  category: "deep-work",
+                  category: "deep-work" as const,
                   start_ts: st.start.toISOString(),
                   end_ts: st.end.toISOString(),
                   notes: st.task.description || null,
-                })
-              );
+                };
+                console.log(`[TaskReview] Creating event:`, eventData);
+                return supabase.from("events").insert(eventData).select();
+              });
 
               const results = await Promise.all(insertPromises);
               
               // Check for errors
               const errors = results.filter((r) => r.error);
               if (errors.length > 0) {
-                console.error("Errors saving some tasks:", errors);
-                throw new Error(`Failed to save ${errors.length} tasks`);
+                console.error("[TaskReview] Errors saving some tasks:", errors);
+                const errorMessages = errors.map((e, i) => `Task ${i + 1}: ${e.error?.message || "Unknown error"}`).join("\n");
+                throw new Error(`Failed to save ${errors.length} task(s):\n${errorMessages}`);
               }
 
-              console.log(`[TaskReview] Successfully scheduled ${scheduledTasks.length} tasks`);
+              // Verify all inserts succeeded
+              const successfulInserts = results.filter((r) => r.data && r.data.length > 0);
+              console.log(`[TaskReview] Successfully inserted ${successfulInserts.length} events:`, successfulInserts.map(r => r.data));
+              
+              if (successfulInserts.length !== scheduledTasks.length) {
+                throw new Error(`Only ${successfulInserts.length} out of ${scheduledTasks.length} tasks were saved`);
+              }
+
+              console.log(`[TaskReview] Successfully saved ${scheduledTasks.length} tasks to calendar`);
+              
+              // Dispatch event to notify calendar to refresh
+              window.dispatchEvent(new CustomEvent('eventsUpdated'));
+              
             } catch (error) {
               console.error("[TaskReview] Error saving scheduled tasks:", error);
               throw error;
