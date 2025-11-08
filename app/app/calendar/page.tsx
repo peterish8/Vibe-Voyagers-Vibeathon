@@ -366,8 +366,8 @@ export default function CalendarPage() {
                     <option value="rest">Rest</option>
                   </select>
                 </div>
-                <div className="flex gap-2">
-                  <div className="flex-1">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Start *
                     </label>
@@ -380,7 +380,7 @@ export default function CalendarPage() {
                       className="w-full input-glass"
                     />
                   </div>
-                  <div className="flex-1">
+                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       End *
                     </label>
