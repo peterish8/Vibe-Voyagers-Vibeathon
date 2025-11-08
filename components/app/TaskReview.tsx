@@ -124,6 +124,7 @@ export default function TaskReview({ tasks, onApply, onCancel }: TaskReviewProps
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       className="mt-3 glass-strong rounded-2xl p-4 border border-purple-200/30 shadow-lg relative z-10"
+      onClick={(e) => e.stopPropagation()}
     >
       <div className="flex items-center justify-between mb-4">
         <h4 className="font-semibold text-sm text-gray-900">
@@ -138,8 +139,17 @@ export default function TaskReview({ tasks, onApply, onCancel }: TaskReviewProps
             AI Allocate All
           </button>
           <button
-            onClick={onCancel}
-            className="p-1 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              console.log("[TaskReview] Cancel button clicked, calling onCancel");
+              onCancel();
+              console.log("[TaskReview] onCancel called");
+            }}
+            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors relative z-[100] cursor-pointer flex items-center justify-center"
+            type="button"
+            aria-label="Close task review"
+            style={{ pointerEvents: 'auto' }}
           >
             <X className="w-4 h-4" />
           </button>
@@ -298,9 +308,14 @@ export default function TaskReview({ tasks, onApply, onCancel }: TaskReviewProps
           )}
         </button>
         <button
-          onClick={onCancel}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onCancel();
+          }}
           disabled={isApplying}
-          className="px-3 py-2 rounded-full text-xs font-medium btn-glass disabled:opacity-50"
+          className="px-3 py-2 rounded-full text-xs font-medium btn-glass disabled:opacity-50 relative z-50"
+          type="button"
         >
           Cancel
         </button>

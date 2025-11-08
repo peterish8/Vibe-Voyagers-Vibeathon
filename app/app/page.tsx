@@ -1,7 +1,6 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Calendar, BookOpen, Mic } from "lucide-react";
 import { format, isToday, startOfDay, endOfDay } from "date-fns";
 import { useTasks } from "@/lib/hooks/use-tasks";
 import { useEvents } from "@/lib/hooks/use-events";
@@ -66,36 +65,15 @@ export default function Dashboard() {
   // Get journal streak (simplified - would need journal hook)
   const journalStreak = 0; // TODO: Implement journal streak calculation
 
-  const quickActions = [
-    {
-      icon: Calendar,
-      label: "Plan My Day",
-      gradient: "from-purple-500 to-purple-600",
-      href: "/app/calendar",
-    },
-    {
-      icon: BookOpen,
-      label: "Log Quick Note",
-      gradient: "from-white to-white",
-      href: "/app/journal",
-    },
-    {
-      icon: Mic,
-      label: "Voice Reflect",
-      gradient: "from-blue-500 to-blue-600",
-      href: "/app/journal",
-    },
-  ];
-
   const nickname = displayName || "there";
 
   return (
     <div className="max-w-7xl mx-auto px-8 py-12 space-y-8">
-      {/* Greeting Card */}
+      {/* Greeting */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="card-glass mb-10 bg-gradient-to-br from-purple-50/50 to-blue-50/50"
+        className="mb-10"
       >
         <h1 className="text-3xl font-serif font-semibold text-gray-900 mb-2">
           {greeting}, {nickname} 👋
@@ -107,6 +85,29 @@ export default function Dashboard() {
           Your focus peaks mid-morning. Consider blocking 10-12 AM for deep
           work.
         </p>
+      </motion.div>
+
+      {/* Daily Quote - Horizontally longer, vertically smaller */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="card-glass bg-gradient-to-br from-purple-50/50 to-blue-50/50 mb-8"
+      >
+        <div className="flex items-center justify-between gap-4 py-3">
+          <div className="flex-1">
+            <h2 className="text-base font-semibold text-gray-900 mb-1">
+              Daily Quote
+            </h2>
+            <p className="text-base font-serif text-gray-800 italic">
+              &quot;Progress is not about perfection, but about the courage to
+              begin.&quot;
+            </p>
+          </div>
+          <button className="btn-glass text-sm whitespace-nowrap">
+            Save to Library
+          </button>
+        </div>
       </motion.div>
 
       {/* Grid Layout */}
@@ -177,59 +178,6 @@ export default function Dashboard() {
             </Link>
           </motion.div>
 
-          {/* Quick Stats */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="card-glass"
-          >
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              Quick Stats
-            </h2>
-                    <div className="space-y-4">
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-gray-600">Habit Score</span>
-                    <span className="text-2xl font-bold text-purple-600">
-                      {habitStats.percentage}%
-                    </span>
-                  </div>
-                  <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-purple-500 to-purple-600 rounded-full transition-all duration-500"
-                      style={{ width: `${habitStats.percentage}%` }}
-                    />
-                  </div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Tasks Completed</span>
-                  <span className="text-lg font-semibold text-gray-900">
-                    {tasksLoading || !tasks
-                      ? "0/0"
-                      : `${
-                          tasks.filter(
-                            (t) =>
-                              t.status === "done" &&
-                              t.completed_at &&
-                              isToday(new Date(t.completed_at))
-                          ).length
-                        }/${
-                          tasks.filter(
-                            (t) => t.due_date && isToday(new Date(t.due_date))
-                          ).length || tasks.length
-                        }`}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Journal Streak</span>
-                  <span className="text-lg font-semibold text-gray-900">
-                    {journalStreak} days 🔥
-                  </span>
-                </div>
-              </div>
-            )}
-          </motion.div>
         </div>
 
         {/* Column 2 - Schedule */}
@@ -254,7 +202,7 @@ export default function Dashboard() {
                       className="flex items-center gap-3 text-sm"
                     >
                       <div className="w-16 text-gray-500">
-                        {format(startTime, "h:mm a")}
+                        <span suppressHydrationWarning>{format(startTime, "h:mm a")}</span>
                       </div>
                       <div
                         className={`flex-1 h-12 rounded-lg border flex items-center px-3 ${
@@ -287,56 +235,59 @@ export default function Dashboard() {
           </motion.div>
         </div>
 
-        {/* Column 3 - Inspiration */}
+        {/* Column 3 - Quick Stats */}
         <div className="space-y-8">
-          {/* Daily Quote */}
+          {/* Quick Stats */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
-            className="card-glass bg-gradient-to-br from-purple-50/50 to-blue-50/50"
+            className="card-glass"
           >
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              Daily Quote
+              Quick Stats
             </h2>
-            <p className="text-lg font-serif text-center text-gray-800 mb-4 italic">
-              &quot;Progress is not about perfection, but about the courage to
-              begin.&quot;
-            </p>
-            <button className="w-full btn-glass text-sm">
-              Save to Library
-            </button>
-          </motion.div>
-
-          {/* Quick Actions */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-            className="space-y-3"
-          >
-            {quickActions.map((action, idx) => {
-              const Icon = action.icon;
-              return (
-                <Link key={action.label} href={action.href}>
-                  <motion.button
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.6 + idx * 0.1 }}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    className={`w-full flex items-center gap-3 px-6 py-4 rounded-2xl ${
-                      action.gradient.includes("white")
-                        ? "btn-glass"
-                        : `bg-gradient-to-r ${action.gradient} text-white shadow-lg`
-                    }`}
-                  >
-                    <Icon className="w-5 h-5" />
-                    <span className="font-medium">{action.label}</span>
-                  </motion.button>
-                </Link>
-              );
-            })}
+            <div className="space-y-4">
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm text-gray-600">Habit Score</span>
+                  <span className="text-2xl font-bold text-purple-600">
+                    {habitStats.percentage}%
+                  </span>
+                </div>
+                <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-purple-500 to-purple-600 rounded-full transition-all duration-500"
+                    style={{ width: `${habitStats.percentage}%` }}
+                  />
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Tasks Completed</span>
+                <span className="text-lg font-semibold text-gray-900">
+                  {tasksLoading || !tasks
+                    ? "0/0"
+                    : `${
+                        tasks.filter(
+                          (t) =>
+                            t.status === "done" &&
+                            t.completed_at &&
+                            isToday(new Date(t.completed_at))
+                        ).length
+                      }/${
+                        tasks.filter(
+                          (t) => t.due_date && isToday(new Date(t.due_date))
+                        ).length || tasks.length
+                      }`}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Journal Streak</span>
+                <span className="text-lg font-semibold text-gray-900">
+                  {journalStreak} days 🔥
+                </span>
+              </div>
+            </div>
           </motion.div>
         </div>
       </div>

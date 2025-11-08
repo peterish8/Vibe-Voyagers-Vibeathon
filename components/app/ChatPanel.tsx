@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { sendAIMessage, type AIMessage } from "@/lib/ai";
 import { parseAIResponse, type ParsedTask } from "@/lib/parse-tasks";
 import { useTasks } from "@/lib/hooks/use-tasks";
+import { useChatPanel } from "@/lib/contexts/ChatPanelContext";
 import TaskReview from "./TaskReview";
 
 type AIMode = "productivity" | "journal";
@@ -18,16 +19,31 @@ interface Message {
   parsedTasks?: ParsedTask[];
 }
 
+// Character names for each mode
+const CHARACTER_NAMES = {
+  productivity: "Tasker",
+  journal: "Scribe",
+} as const;
+
+const CHARACTER_GREETINGS = {
+  productivity: "Hi! I'm Tasker, your productivity assistant. How can I help you get things done today?",
+  journal: "Hello! I'm Scribe, your journaling companion. Ready to reflect and write together?",
+} as const;
+
 export default function ChatPanel() {
-  const [collapsed, setCollapsed] = useState(false);
+  const { collapsed, setCollapsed } = useChatPanel();
   const [mode, setMode] = useState<AIMode>("productivity");
+  
+  // Initialize messages with mode-specific greeting
+  const getInitialMessage = (currentMode: AIMode) => ({
+    id: "1",
+    role: "assistant" as const,
+    content: CHARACTER_GREETINGS[currentMode],
+    timestamp: new Date(),
+  });
+
   const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "1",
-      role: "assistant",
-      content: "Hi! How can I help you today?",
-      timestamp: new Date(),
-    },
+    getInitialMessage("productivity"),
   ]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -224,19 +240,18 @@ export default function ChatPanel() {
       <div className="flex items-center justify-between p-4 border-b border-white/20 relative z-10">
         <div className="flex items-center gap-2">
           <Bot className={`w-5 h-5 ${currentColors.icon}`} />
-          <h3 className="font-semibold text-gray-900">AI Assistant</h3>
+          <h3 className="font-semibold text-gray-900">{CHARACTER_NAMES[mode]}</h3>
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setMessages([messages[0]])}
-            className="p-1.5 rounded-lg hover:bg-white/50 transition-colors text-gray-500 hover:text-gray-700"
-            title="Clear conversation"
-          >
-            <X className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => setCollapsed(true)}
-            className="p-1.5 rounded-lg hover:bg-white/50 transition-colors text-gray-500 hover:text-gray-700"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setCollapsed(true);
+            }}
+            className="p-1.5 rounded-lg hover:bg-white/50 transition-colors text-gray-500 hover:text-gray-700 relative z-50"
+            title="Collapse AI Assistant"
+            type="button"
           >
             <X className="w-4 h-4" />
           </button>
@@ -246,7 +261,12 @@ export default function ChatPanel() {
       {/* Mode Selection */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-white/20 relative z-10">
         <button
-          onClick={() => setMode("productivity")}
+          onClick={() => {
+            setMode("productivity");
+            // Reset messages with new character greeting
+            setMessages([getInitialMessage("productivity")]);
+            setReviewingMessageId(null);
+          }}
           className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
             mode === "productivity"
               ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg"
@@ -257,7 +277,12 @@ export default function ChatPanel() {
           Productivity
         </button>
         <button
-          onClick={() => setMode("journal")}
+          onClick={() => {
+            setMode("journal");
+            // Reset messages with new character greeting
+            setMessages([getInitialMessage("journal")]);
+            setReviewingMessageId(null);
+          }}
           className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
             mode === "journal"
               ? "bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-lg"
@@ -292,7 +317,7 @@ export default function ChatPanel() {
                   <p className="text-sm leading-relaxed whitespace-pre-wrap">
                     {message.content}
                   </p>
-                  <p className="text-xs mt-1 opacity-70">
+                  <p className="text-xs mt-1 opacity-70" suppressHydrationWarning>
                     {typeof window !== "undefined" 
                       ? message.timestamp.toLocaleTimeString("en-US", {
                           hour: "numeric",
@@ -362,7 +387,10 @@ export default function ChatPanel() {
                         throw err; // Re-throw so TaskReview can handle loading state
                       }
                     }}
-                    onCancel={() => setReviewingMessageId(null)}
+                    onCancel={() => {
+                      console.log("[ChatPanel] onCancel called, closing task review");
+                      setReviewingMessageId(null);
+                    }}
                   />
                 )}
             </div>

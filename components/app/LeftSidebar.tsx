@@ -155,7 +155,7 @@ export default function LeftSidebar() {
                         <div className="text-sm font-medium text-gray-700">
                           {formatDate(currentTime)}
                         </div>
-                        <div className="text-lg font-semibold text-gray-900 mt-1 animate-breathing">
+                        <div className="text-lg font-semibold text-gray-900 mt-1 animate-breathing" suppressHydrationWarning>
                           {formatTime(currentTime)}
                         </div>
                       </>

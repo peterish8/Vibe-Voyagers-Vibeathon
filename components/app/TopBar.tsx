@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Plus, Bell, User, X } from "lucide-react";
+import { Search, Plus, Bell, User, X, Bot } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signOut } from "@/lib/auth";
 import { useProfile } from "@/lib/hooks/use-profile";
+import { useChatPanel } from "@/lib/contexts/ChatPanelContext";
 
 export default function TopBar() {
   const [searchOpen, setSearchOpen] = useState(false);
@@ -16,6 +17,7 @@ export default function TopBar() {
   const [hasUnread, setHasUnread] = useState(true);
   const router = useRouter();
   const { displayName, authUser } = useProfile();
+  const { collapsed, setCollapsed } = useChatPanel();
 
   // Debug: Log display name
   if (authUser && displayName === "there") {
@@ -137,6 +139,21 @@ export default function TopBar() {
               )}
             </AnimatePresence>
           </div>
+
+          {/* AI Agent Toggle */}
+          <motion.button
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={() => setCollapsed(!collapsed)}
+            className={`relative p-2 rounded-full transition-all duration-200 ${
+              collapsed 
+                ? "hover:bg-white/50 text-gray-600" 
+                : "bg-gradient-to-r from-purple-500 to-blue-500 text-white"
+            }`}
+            title={collapsed ? "Open AI Assistant" : "Close AI Assistant"}
+          >
+            <Bot className="w-5 h-5" />
+          </motion.button>
 
           {/* Notifications */}
           <div className="relative">
