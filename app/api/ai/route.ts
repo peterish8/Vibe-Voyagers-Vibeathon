@@ -338,12 +338,8 @@ Rules:
       });
 
       // Extract text from response - handle different response structures
-      if (response && response.text) {
-        responseText = response.text;
-      } else if (response && response.response && typeof response.response.text === 'function') {
-        responseText = response.response.text();
-      } else if (response && response.response && response.response.text) {
-        responseText = response.response.text;
+      if (response && typeof response.text === 'function') {
+        responseText = response.text();
       } else if (response && response.candidates && response.candidates[0] && response.candidates[0].content) {
         const content = response.candidates[0].content;
         if (content.parts && content.parts[0] && content.parts[0].text) {
