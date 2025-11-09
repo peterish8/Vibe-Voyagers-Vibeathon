@@ -159,7 +159,20 @@ export default function Dashboard() {
       habitStats,
       chartData,
     });
-  }, [profileLoading, displayName, profile, authUser, tasksLoading, tasks, topTasks, habitsLoading, habits, logs, habitStats, chartData]);
+  }, [
+    profileLoading,
+    displayName,
+    profile,
+    authUser,
+    tasksLoading,
+    tasks,
+    topTasks,
+    habitsLoading,
+    habits,
+    logs,
+    habitStats,
+    chartData,
+  ]);
 
   return (
     <div className="max-w-7xl mx-auto px-8 py-12 space-y-8">
@@ -305,9 +318,23 @@ export default function Dashboard() {
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={chartData}>
                       <defs>
-                        <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.8} />
-                          <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0} />
+                        <linearGradient
+                          id="colorScore"
+                          x1="0"
+                          y1="0"
+                          x2="0"
+                          y2="1"
+                        >
+                          <stop
+                            offset="5%"
+                            stopColor="#8B5CF6"
+                            stopOpacity={0.8}
+                          />
+                          <stop
+                            offset="95%"
+                            stopColor="#8B5CF6"
+                            stopOpacity={0}
+                          />
                         </linearGradient>
                       </defs>
                       <XAxis

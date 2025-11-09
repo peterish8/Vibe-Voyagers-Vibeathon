@@ -188,39 +188,22 @@ export default function Hero() {
         >
           {/* Laptop Mockup */}
           <motion.div
-            className="relative mx-auto"
+            className="relative mx-auto max-w-4xl"
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.8, duration: 0.8 }}
           >
-            <div className="relative bg-gray-900 rounded-t-3xl p-2 shadow-2xl">
-              <div className="bg-white rounded-t-2xl overflow-hidden aspect-video">
-                <div className="w-full h-full bg-gradient-to-br from-purple-100 via-blue-50 to-pink-50 flex items-center justify-center">
-                  <p className="text-gray-400 text-sm">Replace with screenshot</p>
-                </div>
+            <div className="relative bg-gray-900 rounded-t-3xl p-3 shadow-2xl">
+              <div className="bg-white rounded-t-2xl overflow-hidden">
+                <img 
+                  src="/images/dashboard-screenshot.png" 
+                  alt="FlowNote Dashboard" 
+                  className="w-full h-auto block"
+                />
               </div>
             </div>
             {/* Laptop base */}
-            <div className="h-2 bg-gray-800 rounded-b-lg mx-auto w-[95%] shadow-lg" />
-          </motion.div>
-
-          {/* Floating Phone Mockup */}
-          <motion.div
-            className="hidden lg:block absolute -right-20 top-1/4"
-            initial={{ opacity: 0, x: 50, rotate: -10 }}
-            animate={{ opacity: 1, x: 0, rotate: -10 }}
-            transition={{ delay: 1, duration: 0.8 }}
-            whileHover={{ rotate: -5, scale: 1.05 }}
-          >
-            <div className="relative bg-white rounded-[2.5rem] p-3 shadow-2xl">
-              <div className="bg-gray-900 rounded-[2rem] overflow-hidden aspect-[9/19] w-48">
-                <div className="w-full h-full bg-gradient-to-br from-purple-100 via-blue-50 to-pink-50 flex items-center justify-center">
-                  <p className="text-gray-400 text-xs text-center px-4">
-                    Replace with screenshot
-                  </p>
-                </div>
-              </div>
-            </div>
+            <div className="h-3 bg-gray-800 rounded-b-xl mx-auto w-[96%] shadow-lg" />
           </motion.div>
         </motion.div>
       </motion.div>
