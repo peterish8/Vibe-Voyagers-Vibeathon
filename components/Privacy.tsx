@@ -19,6 +19,9 @@ const privacyFeatures = [
     title: "Stored Locally",
     description:
       "Your data stays on your device. We never send your personal information to our servers.",
+    gradient: "from-purple-500/20 to-purple-600/20",
+    iconBg: "from-purple-500 to-purple-600",
+    borderColor: "border-purple-500/30",
   },
   {
     icon: (
@@ -34,6 +37,9 @@ const privacyFeatures = [
     title: "Full Encryption",
     description:
       "All your data is encrypted end-to-end. Only you have access to your information.",
+    gradient: "from-blue-500/20 to-blue-600/20",
+    iconBg: "from-blue-500 to-blue-600",
+    borderColor: "border-blue-500/30",
   },
   {
     icon: (
@@ -49,6 +55,9 @@ const privacyFeatures = [
     title: "Private Browsing Not Captured",
     description:
       "We respect your privacy. Private browsing sessions are never recorded or analyzed.",
+    gradient: "from-pink-500/20 to-pink-600/20",
+    iconBg: "from-pink-500 to-pink-600",
+    borderColor: "border-pink-500/30",
   },
 ];
 
@@ -112,20 +121,40 @@ export default function Privacy() {
             {privacyFeatures.map((feature, index) => (
               <motion.div
                 key={feature.title}
-                className="glass-strong rounded-3xl p-6 bg-white/5 border-white/10"
+                className="relative rounded-3xl p-6 overflow-hidden group"
                 initial={{ opacity: 0, y: 20 }}
                 animate={isInView ? { opacity: 1, y: 0 } : {}}
                 transition={{ duration: 0.4, delay: 0.15 + index * 0.05, ease: [0.4, 0, 0.2, 1] }}
+                whileHover={{ scale: 1.02, y: -2 }}
               >
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center text-white flex-shrink-0">
+                {/* Glass background */}
+                <div className="absolute inset-0 bg-white/20 backdrop-blur-xl border border-white/30 rounded-3xl" />
+                
+                {/* Animated gradient sphere */}
+                <motion.div
+                  className={`absolute -top-8 -right-8 w-32 h-32 bg-gradient-to-br ${feature.iconBg} rounded-full blur-2xl opacity-60`}
+                  animate={{
+                    y: [0, 20, 0],
+                    x: [0, 15, 0],
+                    scale: [1, 1.1, 1],
+                  }}
+                  transition={{
+                    duration: 4 + index * 0.5,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }}
+                />
+                
+                {/* Content */}
+                <div className="relative z-10 flex items-start gap-4">
+                  <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${feature.iconBg} flex items-center justify-center text-white flex-shrink-0 shadow-lg`}>
                     {feature.icon}
                   </div>
                   <div>
                     <h3 className="text-xl font-semibold text-white mb-2">
                       {feature.title}
                     </h3>
-                    <p className="text-gray-300 leading-relaxed">
+                    <p className="text-gray-200 leading-relaxed">
                       {feature.description}
                     </p>
                   </div>

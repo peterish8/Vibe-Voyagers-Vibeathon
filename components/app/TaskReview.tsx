@@ -61,13 +61,16 @@ export default function TaskReview({ tasks, onApply, onCancel }: TaskReviewProps
     );
   };
 
-  const handleEffortChange = (taskId: string, effort: "small" | "medium" | "large") => {
+  const handleEffortChange = (taskId: string, effort: "small" | "medium" | "large" | null) => {
     setEditingTasks((prev) =>
       prev.map((task) => (task.id === taskId ? { ...task, effort } : task))
     );
   };
 
-  const getEffortColor = (effort: "small" | "medium" | "large") => {
+  const getEffortColor = (effort: "small" | "medium" | "large" | null) => {
+    if (effort === null) {
+      return "bg-gray-100 text-gray-500 border-gray-300";
+    }
     switch (effort) {
       case "small":
         return "bg-green-100 text-green-700 border-green-300";
@@ -107,10 +110,11 @@ export default function TaskReview({ tasks, onApply, onCancel }: TaskReviewProps
       console.log("[TaskReview] Tasks applied successfully");
     } catch (error) {
       console.error("[TaskReview] Error applying tasks:", error);
-      // Don't reset isApplying on error - let the error message show
-      // The error will be displayed in ChatPanel
-      throw error; // Re-throw so ChatPanel can handle it
+      // Show error to user
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      alert(`Error creating tasks: ${errorMessage}`);
     } finally {
+      // Always reset loading state
       setIsApplying(false);
     }
   };
@@ -124,6 +128,7 @@ export default function TaskReview({ tasks, onApply, onCancel }: TaskReviewProps
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       className="mt-3 glass-strong rounded-2xl p-4 border border-purple-200/30 shadow-lg relative z-10"
+      onClick={(e) => e.stopPropagation()}
     >
       <div className="flex items-center justify-between mb-4">
         <h4 className="font-semibold text-sm text-gray-900">
@@ -131,15 +136,17 @@ export default function TaskReview({ tasks, onApply, onCancel }: TaskReviewProps
         </h4>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setShowMultiScheduler(true)}
-            className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 text-white text-xs font-medium hover:from-blue-600 hover:to-blue-700 transition-colors flex items-center gap-1.5"
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            AI Allocate All
-          </button>
-          <button
-            onClick={onCancel}
-            className="p-1 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              console.log("[TaskReview] Cancel button clicked, calling onCancel");
+              onCancel();
+              console.log("[TaskReview] onCancel called");
+            }}
+            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors relative z-[100] cursor-pointer flex items-center justify-center"
+            type="button"
+            aria-label="Close task review"
+            style={{ pointerEvents: 'auto' }}
           >
             <X className="w-4 h-4" />
           </button>
@@ -261,7 +268,21 @@ export default function TaskReview({ tasks, onApply, onCancel }: TaskReviewProps
                           {effort.charAt(0).toUpperCase()}
                         </button>
                       ))}
+                      <button
+                        onClick={() => handleEffortChange(task.id, null)}
+                        className={`w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs font-semibold transition-all ${
+                          task.effort === null
+                            ? getEffortColor(null) + " scale-110"
+                            : "bg-gray-100 text-gray-400 border-gray-300 hover:bg-gray-200"
+                        }`}
+                        title="N/A (Physical Activity)"
+                      >
+                        —
+                      </button>
                     </div>
+                    {task.effort === null && (
+                      <span className="text-xs text-gray-500 italic">(Physical Activity)</span>
+                    )}
                   </div>
                 </div>
               </>
@@ -298,9 +319,14 @@ export default function TaskReview({ tasks, onApply, onCancel }: TaskReviewProps
           )}
         </button>
         <button
-          onClick={onCancel}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onCancel();
+          }}
           disabled={isApplying}
-          className="px-3 py-2 rounded-full text-xs font-medium btn-glass disabled:opacity-50"
+          className="px-3 py-2 rounded-full text-xs font-medium btn-glass disabled:opacity-50 relative z-50"
+          type="button"
         >
           Cancel
         </button>
@@ -327,35 +353,39 @@ export default function TaskReview({ tasks, onApply, onCancel }: TaskReviewProps
           onClose={() => setShowMultiScheduler(false)}
           onSave={async (scheduledTasks) => {
             try {
-              const { createClient } = await import("@/lib/supabase/client");
-              const supabase = createClient();
-              const { data: { user } } = await supabase.auth.getUser();
-              if (!user) throw new Error("Not authenticated");
-
               console.log(`[TaskReview] Saving ${scheduledTasks.length} scheduled tasks`);
-
-              // Create events for all scheduled tasks
-              const insertPromises = scheduledTasks.map((st) =>
-                supabase.from("events").insert({
-                  user_id: user.id,
+              
+              // Use API route for consistency
+              const promises = scheduledTasks.map(async (st) => {
+                const eventData = {
                   title: st.task.title,
-                  category: "deep-work",
+                  category: "deep-work" as const,
                   start_ts: st.start.toISOString(),
                   end_ts: st.end.toISOString(),
                   notes: st.task.description || null,
-                })
-              );
+                };
+                
+                const response = await fetch('/api/events', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(eventData),
+                });
+                
+                if (!response.ok) {
+                  const error = await response.json();
+                  throw new Error(error.error || 'Failed to create event');
+                }
+                
+                return response.json();
+              });
 
-              const results = await Promise.all(insertPromises);
+              await Promise.all(promises);
+              console.log(`[TaskReview] All ${scheduledTasks.length} tasks scheduled successfully`);
               
-              // Check for errors
-              const errors = results.filter((r) => r.error);
-              if (errors.length > 0) {
-                console.error("Errors saving some tasks:", errors);
-                throw new Error(`Failed to save ${errors.length} tasks`);
-              }
-
-              console.log(`[TaskReview] Successfully scheduled ${scheduledTasks.length} tasks`);
+              // Close modal and refresh
+              setShowMultiScheduler(false);
+              window.dispatchEvent(new CustomEvent('eventsUpdated'));
+              
             } catch (error) {
               console.error("[TaskReview] Error saving scheduled tasks:", error);
               throw error;

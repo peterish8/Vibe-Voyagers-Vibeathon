@@ -1,21 +1,29 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Search, Plus, Bell, User, X } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { Plus, Bell, User, Bot, CheckSquare, Calendar, BookOpen, Target, Sparkles } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signOut } from "@/lib/auth";
 import { useProfile } from "@/lib/hooks/use-profile";
+import { useChatPanel } from "@/lib/contexts/ChatPanelContext";
+import { useTasks } from "@/lib/hooks/use-tasks";
+import { useJournal } from "@/lib/hooks/use-journal";
+import { useHabits } from "@/lib/hooks/use-habits";
+import { useEvents } from "@/lib/hooks/use-events";
+import { format } from "date-fns";
 
 export default function TopBar() {
-  const [searchOpen, setSearchOpen] = useState(false);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [hasUnread, setHasUnread] = useState(true);
   const router = useRouter();
   const { displayName, authUser } = useProfile();
+  const { collapsed, setCollapsed } = useChatPanel();
+  
+
 
   // Debug: Log display name
   if (authUser && displayName === "there") {
@@ -31,15 +39,12 @@ export default function TopBar() {
       ? displayName.substring(0, 2).toUpperCase()
       : displayName.substring(0, 1).toUpperCase();
 
-  // Keyboard shortcut for search
+
+
+  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-        e.preventDefault();
-        setSearchOpen(true);
-      }
       if (e.key === "Escape") {
-        setSearchOpen(false);
         setQuickAddOpen(false);
         setNotificationsOpen(false);
         setProfileOpen(false);
@@ -48,6 +53,8 @@ export default function TopBar() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+
 
   return (
     <header className="fixed top-0 left-0 right-0 h-16 z-50 glass border-b border-white/20">
@@ -68,28 +75,8 @@ export default function TopBar() {
           </motion.div>
         </Link>
 
-        {/* Global Search */}
-        <div className="flex-1 max-w-md mx-8 relative">
-          <motion.div
-            className="relative"
-            initial={false}
-            animate={{ scale: searchOpen ? 1.02 : 1 }}
-          >
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search tasks, journals, events..."
-              className="w-full pl-11 pr-20 py-2.5 rounded-full input-glass"
-              onFocus={() => setSearchOpen(true)}
-              onBlur={() => setTimeout(() => setSearchOpen(false), 200)}
-            />
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 px-2 py-1 rounded-md bg-white/50 text-xs text-gray-500">
-              <kbd className="px-1.5 py-0.5 rounded bg-white/80 border border-gray-200">
-                ⌘K
-              </kbd>
-            </div>
-          </motion.div>
-        </div>
+        {/* Spacer */}
+        <div className="flex-1" />
 
         {/* Right Actions */}
         <div className="flex items-center gap-3">
@@ -111,32 +98,50 @@ export default function TopBar() {
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
-                  className="absolute top-full right-0 mt-2 w-48 glass-strong rounded-2xl p-2 shadow-xl"
+                  className="absolute top-full right-0 mt-2 w-48 rounded-2xl p-2 shadow-xl bg-white/95 backdrop-blur-xl border border-white/50"
                 >
                   {[
-                    { icon: "✓", label: "Task" },
-                    { icon: "📅", label: "Event" },
-                    { icon: "📝", label: "Journal Entry" },
-                    { icon: "🎯", label: "Habit" },
-                  ].map((item) => (
-                    <button
-                      key={item.label}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl hover:bg-purple-50/50 transition-colors text-left"
-                      onClick={() => {
-                        setQuickAddOpen(false);
-                        // Handle quick add action
-                      }}
-                    >
-                      <span>{item.icon}</span>
-                      <span className="text-sm text-gray-700">
-                        {item.label}
-                      </span>
-                    </button>
-                  ))}
+                    { icon: CheckSquare, label: "Task", color: "text-blue-600" },
+                    { icon: Calendar, label: "Event", color: "text-red-600" },
+                    { icon: BookOpen, label: "Journal Entry", color: "text-purple-600" },
+                    { icon: Target, label: "Habit", color: "text-green-600" },
+                  ].map((item) => {
+                    const IconComponent = item.icon;
+                    return (
+                      <button
+                        key={item.label}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl hover:bg-purple-50/50 transition-colors text-left"
+                        onClick={() => {
+                          setQuickAddOpen(false);
+                          // Handle quick add action
+                        }}
+                      >
+                        <IconComponent className={`w-5 h-5 ${item.color}`} />
+                        <span className="text-sm text-gray-700">
+                          {item.label}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </motion.div>
               )}
             </AnimatePresence>
           </div>
+
+          {/* AI Agent Toggle */}
+          <motion.button
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={() => setCollapsed(!collapsed)}
+            className={`relative p-2 rounded-full transition-all duration-200 ${
+              collapsed 
+                ? "hover:bg-white/50 text-gray-600" 
+                : "bg-gradient-to-r from-purple-500 to-blue-500 text-white"
+            }`}
+            title={collapsed ? "Open AI Assistant" : "Close AI Assistant"}
+          >
+            <Bot className="w-5 h-5" />
+          </motion.button>
 
           {/* Notifications */}
           <div className="relative">
@@ -174,8 +179,9 @@ export default function TopBar() {
                       Mark all as read
                     </button>
                   </div>
-                  <div className="text-center py-8 text-gray-500 text-sm">
-                    All caught up! 🎉
+                  <div className="text-center py-8 text-gray-500 text-sm flex items-center justify-center gap-2">
+                    All caught up!
+                    <Sparkles className="w-4 h-4 text-yellow-500" />
                   </div>
                 </motion.div>
               )}
@@ -206,24 +212,26 @@ export default function TopBar() {
                   exit={{ opacity: 0, y: -10 }}
                   className="absolute top-full right-0 mt-2 w-56 glass-strong rounded-2xl p-2 shadow-xl"
                 >
-                  <Link href="/app/settings">
-                    <button
-                      className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl hover:bg-purple-50/50 transition-colors text-left text-gray-700"
-                      onClick={() => setProfileOpen(false)}
-                    >
-                      <User className="w-4 h-4" />
-                      <span className="text-sm">Profile</span>
-                    </button>
-                  </Link>
+                  <button
+                    className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl hover:bg-purple-50/50 transition-colors text-left text-gray-700"
+                    onClick={() => {
+                      setProfileOpen(false);
+                      router.push("/app/settings");
+                    }}
+                  >
+                    <User className="w-4 h-4" />
+                    <span className="text-sm">Profile</span>
+                  </button>
                   <div className="h-px bg-gray-200 my-2" />
-                  <Link href="/app/settings">
-                    <button
-                      className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl hover:bg-purple-50/50 transition-colors text-left text-gray-700"
-                      onClick={() => setProfileOpen(false)}
-                    >
-                      <span className="text-sm">Settings</span>
-                    </button>
-                  </Link>
+                  <button
+                    className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl hover:bg-purple-50/50 transition-colors text-left text-gray-700"
+                    onClick={() => {
+                      setProfileOpen(false);
+                      router.push("/app/settings");
+                    }}
+                  >
+                    <span className="text-sm">Settings</span>
+                  </button>
                   <button
                     className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl hover:bg-red-50/50 transition-colors text-left text-red-600"
                     onClick={async () => {
@@ -246,18 +254,7 @@ export default function TopBar() {
         </div>
       </div>
 
-      {/* Search Overlay */}
-      <AnimatePresence>
-        {searchOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40"
-            onClick={() => setSearchOpen(false)}
-          />
-        )}
-      </AnimatePresence>
+
     </header>
   );
 }

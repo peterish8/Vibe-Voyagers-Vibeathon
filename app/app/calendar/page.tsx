@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, Plus, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, X, CheckSquare } from "lucide-react";
 import {
   format,
   startOfWeek,
@@ -10,21 +10,46 @@ import {
   addWeeks,
   subWeeks,
   isSameDay,
+  startOfDay,
+  endOfDay,
 } from "date-fns";
 import { useEvents } from "@/lib/hooks/use-events";
+import { Event } from "@/lib/hooks/use-events";
+import EventEditModal from "@/components/app/EventEditModal";
+import { useTasks } from "@/lib/hooks/use-tasks";
+import { useEffect } from "react";
 
 export default function CalendarPage() {
   const [view, setView] = useState<"week" | "month" | "day">("week");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isCreating, setIsCreating] = useState(false);
+  const [isCreatingEvent, setIsCreatingEvent] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 });
   const hours = Array.from({ length: 17 }, (_, i) => i + 6); // 6 AM to 10 PM
 
   const weekEnd = addDays(weekStart, 6);
-  const { events, loading, createEvent, refetch } = useEvents(
-    weekStart,
-    weekEnd
+  // Expand date range to include past events (show 2 weeks back and 2 weeks forward for history)
+  const historyStart = subWeeks(weekStart, 2);
+  const historyEnd = addWeeks(weekEnd, 2);
+  const { events, loading, createEvent, updateEvent, deleteEvent, refetch } = useEvents(
+    historyStart,
+    historyEnd
   );
+  
+  // Fetch tasks to show in calendar (tasks with due_date or scheduled tasks)
+  const { tasks } = useTasks();
+
+  // Listen for events updated from other components
+  useEffect(() => {
+    const handleEventsUpdated = () => {
+      console.log("[CalendarPage] Events updated, refreshing...");
+      refetch();
+    };
+    
+    window.addEventListener('eventsUpdated', handleEventsUpdated);
+    return () => window.removeEventListener('eventsUpdated', handleEventsUpdated);
+  }, [refetch]);
 
   const [newEvent, setNewEvent] = useState({
     title: "",
@@ -53,21 +78,60 @@ export default function CalendarPage() {
   };
 
   const handleCreateEvent = async () => {
-    if (!newEvent.title.trim() || !newEvent.start_ts || !newEvent.end_ts)
+    console.log('[CalendarPage] handleCreateEvent called with:', newEvent);
+    
+    if (!newEvent.title.trim()) {
+      alert("Please enter an event title");
       return;
+    }
+    
+    if (!newEvent.start_ts) {
+      alert("Please select a start time");
+      return;
+    }
+    
+    if (!newEvent.end_ts) {
+      alert("Please select an end time");
+      return;
+    }
 
     try {
-      await createEvent({
-        title: newEvent.title,
+      setIsCreatingEvent(true);
+      console.log('[CalendarPage] Starting event creation...');
+      
+      // Convert datetime-local format to ISO string
+      const startDate = new Date(newEvent.start_ts);
+      const endDate = new Date(newEvent.end_ts);
+      
+      console.log('[CalendarPage] Parsed dates:', { startDate, endDate });
+      
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        alert("Invalid date format. Please check your dates.");
+        setIsCreatingEvent(false);
+        return;
+      }
+      
+      if (endDate <= startDate) {
+        alert("End time must be after start time.");
+        setIsCreatingEvent(false);
+        return;
+      }
+
+      const eventData = {
+        title: newEvent.title.trim(),
         category: newEvent.category,
-        start_ts: newEvent.start_ts,
-        end_ts: newEvent.end_ts,
-        notes: newEvent.notes || null,
-      });
+        start_ts: startDate.toISOString(),
+        end_ts: endDate.toISOString(),
+        notes: newEvent.notes?.trim() || null,
+      };
+      
+      console.log('[CalendarPage] Creating event with data:', eventData);
 
-      // Refetch events to ensure calendar updates
-      await refetch();
+      const createdEvent = await createEvent(eventData);
 
+      console.log('[CalendarPage] Event created successfully:', createdEvent);
+
+      // Reset form and close modal first for better UX
       setNewEvent({
         title: "",
         category: "personal",
@@ -76,31 +140,92 @@ export default function CalendarPage() {
         notes: "",
       });
       setIsCreating(false);
-    } catch (error) {
-      console.error("Error creating event:", error);
+      setIsCreatingEvent(false);
+      
+      // Then refetch to ensure consistency
+      await refetch();
+      
+      // Dispatch event to notify other components
+      window.dispatchEvent(new CustomEvent('eventsUpdated'));
+      
+      console.log('[CalendarPage] Event creation completed successfully');
+    } catch (error: any) {
+      console.error('[CalendarPage] Error creating event:', error);
+      setIsCreatingEvent(false);
+      
+      // Show detailed error message
+      let errorMessage = "Unknown error occurred";
+      if (error.message) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
+      
+      alert(`Failed to create event: ${errorMessage}`);
     }
   };
 
-  // Get events for a specific day and hour
+  // Get events for a specific day and hour (including tasks converted to events)
   const getEventsForSlot = (dayIndex: number, hour: number) => {
-    if (!events || events.length === 0) return [];
     const day = addDays(weekStart, dayIndex);
-    return events.filter((event) => {
-      if (!event.start_ts || !event.end_ts) return false;
-      try {
-        const eventStart = new Date(event.start_ts);
-        const eventEnd = new Date(event.end_ts);
-        const slotStart = new Date(day);
-        slotStart.setHours(hour, 0, 0, 0);
-        const slotEnd = new Date(day);
-        slotEnd.setHours(hour + 1, 0, 0, 0);
-
-        return eventStart < slotEnd && eventEnd > slotStart;
-      } catch (error) {
-        console.error("Error parsing event date:", error);
-        return false;
-      }
-    });
+    const slotStart = new Date(day);
+    slotStart.setHours(hour, 0, 0, 0);
+    const slotEnd = new Date(day);
+    slotEnd.setHours(hour + 1, 0, 0, 0);
+    
+    const allEvents: Array<Event & { isTask?: boolean }> = [];
+    
+    // Add calendar events
+    if (events && events.length > 0) {
+      events.forEach((event) => {
+        if (!event.start_ts || !event.end_ts) return;
+        try {
+          const eventStart = new Date(event.start_ts);
+          const eventEnd = new Date(event.end_ts);
+          
+          if (eventStart < slotEnd && eventEnd > slotStart) {
+            allEvents.push(event);
+          }
+        } catch (error) {
+          console.error("Error parsing event date:", error);
+        }
+      });
+    }
+    
+    // Add tasks with due_date as events (if they fall on this day)
+    if (tasks && tasks.length > 0) {
+      tasks.forEach((task) => {
+        if (task.due_date && task.status !== 'done') {
+          try {
+            const dueDate = new Date(task.due_date);
+            const taskStart = startOfDay(dueDate);
+            const taskEnd = endOfDay(dueDate);
+            
+            // Check if task's due date overlaps with this slot
+            if (taskStart < slotEnd && taskEnd > slotStart) {
+              // Create a virtual event for the task
+              const taskEvent: Event & { isTask?: boolean } = {
+                id: `task-${task.id}`,
+                title: task.title,
+                category: "deep-work",
+                start_ts: taskStart.toISOString(),
+                end_ts: taskEnd.toISOString(),
+                notes: task.notes,
+                task_id: task.id,
+                created_at: task.created_at,
+                updated_at: task.updated_at,
+                isTask: true,
+              };
+              allEvents.push(taskEvent);
+            }
+          } catch (error) {
+            console.error("Error parsing task due date:", error);
+          }
+        }
+      });
+    }
+    
+    return allEvents;
   };
 
   return (
@@ -230,14 +355,24 @@ export default function CalendarPage() {
                             const topOffset = startHour - hour;
 
                             if (topOffset < 0 || topOffset >= 1) return null;
+                            
+                            // Check if this is a task (not a regular event)
+                            const isTask = (event as any).isTask === true;
+                            const isPast = eventEnd < new Date();
 
                             return (
                               <div
                                 key={event.id}
+                                onClick={() => {
+                                  if (!isTask) {
+                                    setEditingEvent(event);
+                                  }
+                                }}
                                 className={`absolute left-0.5 right-0.5 rounded-md border z-10 ${
-                                  categoryColors[event.category] ||
-                                  categoryColors.personal
-                                } flex items-start px-1.5 py-1 text-xs font-medium cursor-pointer transition-transform hover:scale-105 overflow-hidden`}
+                                  isTask 
+                                    ? "bg-gray-200 border-gray-300 text-gray-800 opacity-70"
+                                    : categoryColors[event.category] || categoryColors.personal
+                                } ${isPast ? "opacity-50" : ""} flex items-start px-1.5 py-1 text-xs font-medium ${!isTask ? "cursor-pointer" : "cursor-default"} transition-transform hover:scale-105 overflow-hidden`}
                                 style={{
                                   top: `${Math.max(0, topOffset * 64)}px`,
                                   height: `${Math.max(
@@ -248,12 +383,13 @@ export default function CalendarPage() {
                                     ) * 64
                                   )}px`,
                                 }}
-                                title={`${event.title} (${format(
-                                  eventStart,
-                                  "h:mm a"
-                                )} - ${format(eventEnd, "h:mm a")})`}
+                                title={isTask 
+                                  ? `${event.title} (Task - Due: ${format(eventStart, "MMM d, h:mm a")})`
+                                  : `${event.title} (${format(eventStart, "h:mm a")} - ${format(eventEnd, "h:mm a")}) - Click to edit`
+                                }
                               >
-                                <span className="truncate leading-tight">
+                                <span className="truncate leading-tight flex items-center gap-1">
+                                  {isTask && <CheckSquare className="w-3 h-3 flex-shrink-0" />}
                                   {event.title}
                                 </span>
                               </div>
@@ -350,21 +486,32 @@ export default function CalendarPage() {
                     <option value="rest">Rest</option>
                   </select>
                 </div>
-                <div className="flex gap-2">
-                  <div className="flex-1">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Start *
                     </label>
                     <input
                       type="datetime-local"
                       value={newEvent.start_ts}
-                      onChange={(e) =>
-                        setNewEvent({ ...newEvent, start_ts: e.target.value })
-                      }
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setNewEvent((prev) => {
+                          // Auto-set end time to 1 hour after start if end is empty
+                          if (value && !prev.end_ts) {
+                            const startDate = new Date(value);
+                            const endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // Add 1 hour
+                            const endValue = format(endDate, "yyyy-MM-dd'T'HH:mm");
+                            return { ...prev, start_ts: value, end_ts: endValue };
+                          }
+                          return { ...prev, start_ts: value };
+                        });
+                      }}
                       className="w-full input-glass"
+                      min={format(new Date(), "yyyy-MM-dd'T'HH:mm")}
                     />
                   </div>
-                  <div className="flex-1">
+                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       End *
                     </label>
@@ -375,6 +522,7 @@ export default function CalendarPage() {
                         setNewEvent({ ...newEvent, end_ts: e.target.value })
                       }
                       className="w-full input-glass"
+                      min={newEvent.start_ts || format(new Date(), "yyyy-MM-dd'T'HH:mm")}
                     />
                   </div>
                 </div>
@@ -395,13 +543,18 @@ export default function CalendarPage() {
                 <div className="flex gap-4">
                   <button
                     onClick={handleCreateEvent}
-                    className="btn-primary flex-1"
+                    disabled={isCreatingEvent}
+                    className="btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Create Event
+                    {isCreatingEvent ? "Creating..." : "Create Event"}
                   </button>
                   <button
-                    onClick={() => setIsCreating(false)}
-                    className="btn-glass flex-1"
+                    onClick={() => {
+                      setIsCreating(false);
+                      setIsCreatingEvent(false);
+                    }}
+                    disabled={isCreatingEvent}
+                    className="btn-glass flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Cancel
                   </button>
@@ -410,6 +563,20 @@ export default function CalendarPage() {
             </div>
           </motion.div>
         </>
+      )}
+
+      {/* Edit Event Modal */}
+      {editingEvent && (
+        <EventEditModal
+          event={editingEvent}
+          isOpen={!!editingEvent}
+          onClose={() => setEditingEvent(null)}
+          selectedDate={new Date(editingEvent.start_ts)}
+          onEventUpdated={() => {
+            refetch();
+            setEditingEvent(null);
+          }}
+        />
       )}
     </div>
   );

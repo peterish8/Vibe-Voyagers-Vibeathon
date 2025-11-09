@@ -252,16 +252,14 @@ export function useProfile() {
 
   const updateProfile = async (updates: Partial<Profile>) => {
     try {
+      if (!authUser) throw new Error("Not authenticated");
+      
       const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
 
       const { data, error } = await supabase
         .from("profiles")
         .update({ ...updates, updated_at: new Date().toISOString() })
-        .eq("id", user.id)
+        .eq("id", authUser.id)
         .select()
         .single();
 

@@ -39,7 +39,7 @@ export default function FinalCTA() {
           transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
         >
           <h2 className="text-4xl md:text-6xl font-serif mb-6 text-white">
-            Download your new superpower today
+            Start your productivity journey today
           </h2>
           <p className="text-xl text-white/90 mb-12 max-w-2xl mx-auto">
             Join thousands of professionals who are already working smarter with

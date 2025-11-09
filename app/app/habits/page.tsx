@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Plus, MoreVertical, X } from "lucide-react";
+import { Plus, MoreVertical, X, Flame, Check } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from "recharts";
 import { useHabits } from "@/lib/hooks/use-habits";
 import { format, subDays, startOfDay } from "date-fns";
@@ -12,9 +12,24 @@ export default function HabitsPage() {
   const { habits, logs, loading, createHabit, updateHabit, toggleHabitLog, getHabitCompletionForDate } = useHabits();
   const [isCreating, setIsCreating] = useState(false);
   const [newHabitName, setNewHabitName] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [selectedHabitId, setSelectedHabitId] = useState<string | null>(null);
+  const [deleteHabitId, setDeleteHabitId] = useState<string | null>(null);
 
   const habitStats = getHabitCompletionForDate(today);
   const activeHabits = habits.filter(h => h.is_active);
+  const inactiveHabits = habits.filter(h => !h.is_active);
+
+  // Debug: Log habits to console
+  useEffect(() => {
+    console.log('[HabitsPage] Habits state:', {
+      total: habits.length,
+      active: activeHabits.length,
+      inactive: inactiveHabits.length,
+      habits: habits.map(h => ({ id: h.id, name: h.name, is_active: h.is_active })),
+      loading
+    });
+  }, [habits, activeHabits.length, inactiveHabits.length, loading]);
 
   // Get completion status for each habit today
   const getHabitStatus = (habitId: string) => {
@@ -42,7 +57,7 @@ export default function HabitsPage() {
     return streak;
   };
 
-  // Generate chart data for last 7 days
+  // Generate chart data for last 7 days (overall)
   const chartData = Array.from({ length: 7 }, (_, i) => {
     const date = subDays(today, 6 - i);
     const stats = getHabitCompletionForDate(date);
@@ -52,19 +67,36 @@ export default function HabitsPage() {
     };
   });
 
+  // Generate individual habit chart data for last 30 days
+  const getHabitChartData = (habitId: string) => {
+    return Array.from({ length: 30 }, (_, i) => {
+      const date = subDays(today, 29 - i);
+      const dateStr = date.toISOString().split('T')[0];
+      const log = logs.find(l => l.habit_id === habitId && l.log_date === dateStr);
+      return {
+        date: format(date, "MMM d"),
+        completed: log?.completed ? 1 : 0,
+      };
+    });
+  };
+
   const handleCreateHabit = async () => {
     if (!newHabitName.trim()) return;
     
     try {
-      await createHabit({
-        name: newHabitName,
-        is_active: true,
-        target_days_per_week: 7,
+      const response = await fetch('/api/habits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newHabitName })
       });
+      
+      if (!response.ok) throw new Error('Failed');
+      
       setNewHabitName("");
       setIsCreating(false);
+      window.location.reload();
     } catch (error) {
-      console.error("Error creating habit:", error);
+      setError("Failed to create habit");
     }
   };
 
@@ -74,6 +106,23 @@ export default function HabitsPage() {
       await toggleHabitLog(habitId, today, !currentStatus);
     } catch (error) {
       console.error("Error toggling habit:", error);
+    }
+  };
+
+  const handleDeleteHabit = async () => {
+    if (!deleteHabitId) return;
+    
+    try {
+      const response = await fetch(`/api/habits/${deleteHabitId}`, {
+        method: 'DELETE'
+      });
+      
+      if (response.ok) {
+        setDeleteHabitId(null);
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error('Error deleting habit:', error);
     }
   };
 
@@ -166,9 +215,9 @@ export default function HabitsPage() {
                       <motion.div
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
-                        className="text-white text-lg"
+                        className="text-white"
                       >
-                        ✓
+                        <Check className="w-5 h-5" />
                       </motion.div>
                     )}
                   </button>
@@ -176,12 +225,16 @@ export default function HabitsPage() {
                     <p className={`font-medium ${completed ? "text-gray-600 line-through" : "text-gray-900"}`}>
                       {habit.name}
                     </p>
-                    <p className="text-sm text-gray-500 mt-0.5">
-                      {streak} days 🔥
+                    <p className="text-sm text-gray-500 mt-0.5 flex items-center gap-1">
+                      {streak} days <Flame className="w-3.5 h-3.5 text-orange-500" />
                     </p>
                   </div>
-                  <button className="p-2 rounded-lg hover:bg-white/50">
-                    <MoreVertical className="w-4 h-4 text-gray-500" />
+                  <button 
+                    onClick={() => setDeleteHabitId(habit.id)}
+                    className="p-2 rounded-lg hover:bg-red-50 text-red-500 hover:text-red-700"
+                    title="Delete habit"
+                  >
+                    <X className="w-4 h-4" />
                   </button>
                 </motion.div>
               );
@@ -189,43 +242,170 @@ export default function HabitsPage() {
           </div>
         ) : (
           <div className="card-glass p-8 text-center text-gray-500">
-            No habits yet. Create your first one!
+            No active habits. {habits.length > 0 ? "You have inactive habits below." : "Create your first one!"}
+          </div>
+        )}
+
+        {/* Inactive Habits Section */}
+        {inactiveHabits.length > 0 && (
+          <div className="mt-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-gray-900">Inactive Habits</h2>
+            </div>
+            <div className="space-y-3">
+              {inactiveHabits.map((habit) => {
+                const completed = getHabitStatus(habit.id);
+                const streak = getHabitStreak(habit.id);
+                
+                return (
+                  <motion.div
+                    key={habit.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    whileHover={{ x: 4 }}
+                    className="card-glass flex items-center gap-4 p-4 opacity-60"
+                  >
+                    <div className="w-8 h-8 rounded border-2 border-gray-300 flex items-center justify-center">
+                      <X className="w-4 h-4 text-gray-400" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-500 line-through">
+                        {habit.name}
+                      </p>
+                      <p className="text-sm text-gray-400 mt-0.5 flex items-center gap-1">
+                        Inactive
+                      </p>
+                    </div>
+                    <button 
+                      onClick={async () => {
+                        try {
+                          await updateHabit(habit.id, { is_active: true });
+                          window.location.reload();
+                        } catch (error) {
+                          console.error("Error reactivating habit:", error);
+                        }
+                      }}
+                      className="px-4 py-2 rounded-lg bg-purple-100 text-purple-700 hover:bg-purple-200 text-sm font-medium transition-colors"
+                      title="Reactivate habit"
+                    >
+                      Reactivate
+                    </button>
+                    <button 
+                      onClick={() => setDeleteHabitId(habit.id)}
+                      className="p-2 rounded-lg hover:bg-red-50 text-red-500 hover:text-red-700"
+                      title="Delete habit"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </motion.div>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
 
-      {/* Trend Graph */}
+      {/* Habit Tracking Graph */}
       {activeHabits.length > 0 && (
         <div className="card-glass mb-8">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Your Consistency</h3>
-          <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={chartData}>
-              <defs>
-                <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-              <XAxis dataKey="date" stroke="#6B7280" />
-              <YAxis stroke="#6B7280" domain={[0, 100]} />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "white",
-                  border: "1px solid #E5E7EB",
-                  borderRadius: "12px",
-                }}
-              />
-              <Area
-                type="monotone"
-                dataKey="score"
-                stroke="#8B5CF6"
-                strokeWidth={2}
-                fillOpacity={1}
-                fill="url(#colorScore)"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Habit Tracking</h3>
+            <select 
+              value={selectedHabitId || 'overall'}
+              onChange={(e) => setSelectedHabitId(e.target.value === 'overall' ? null : e.target.value)}
+              className="input-glass text-sm"
+            >
+              <option value="overall">Overall Progress (7 days)</option>
+              {activeHabits.map((habit) => (
+                <option key={habit.id} value={habit.id}>{habit.name} (30 days)</option>
+              ))}
+            </select>
+          </div>
+          
+          {selectedHabitId ? (
+            (() => {
+              const habit = activeHabits.find(h => h.id === selectedHabitId);
+              if (!habit) return null;
+              
+              const habitData = getHabitChartData(habit.id);
+              const completedCount = habitData.filter(d => d.completed === 1).length;
+              const completionRate = Math.round((completedCount / 30) * 100);
+              
+              return (
+                <div>
+                  <div className="mb-4">
+                    <h4 className="font-semibold text-gray-900">{habit.name}</h4>
+                    <p className="text-sm text-gray-600">
+                      {completedCount} of 30 days ({completionRate}%)
+                    </p>
+                  </div>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <LineChart data={habitData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                      <XAxis 
+                        dataKey="date" 
+                        stroke="#6B7280" 
+                        tick={{ fontSize: 10 }}
+                        interval="preserveStartEnd"
+                      />
+                      <YAxis 
+                        stroke="#6B7280" 
+                        domain={[0, 1]}
+                        tick={{ fontSize: 10 }}
+                        tickFormatter={(value) => value === 1 ? "Done" : ""}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "white",
+                          border: "1px solid #E5E7EB",
+                          borderRadius: "8px",
+                          fontSize: "12px",
+                        }}
+                        formatter={(value: number) => value === 1 ? "Completed" : "Not completed"}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="completed"
+                        stroke="#10B981"
+                        strokeWidth={2}
+                        dot={{ fill: "#10B981", r: 3 }}
+                        activeDot={{ r: 5 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              );
+            })()
+          ) : (
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                <XAxis dataKey="date" stroke="#6B7280" />
+                <YAxis stroke="#6B7280" domain={[0, 100]} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "white",
+                    border: "1px solid #E5E7EB",
+                    borderRadius: "12px",
+                  }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="score"
+                  stroke="#8B5CF6"
+                  strokeWidth={2}
+                  fillOpacity={1}
+                  fill="url(#colorScore)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
         </div>
       )}
 
@@ -262,7 +442,10 @@ export default function HabitsPage() {
                   <input
                     type="text"
                     value={newHabitName}
-                    onChange={(e) => setNewHabitName(e.target.value)}
+                    onChange={(e) => {
+                      setNewHabitName(e.target.value);
+                      setError(null);
+                    }}
                     className="w-full input-glass"
                     placeholder="e.g., Morning Meditation"
                     autoFocus
@@ -270,6 +453,9 @@ export default function HabitsPage() {
                       if (e.key === 'Enter') handleCreateHabit();
                     }}
                   />
+                  {error && (
+                    <p className="mt-2 text-sm text-red-600">{error}</p>
+                  )}
                 </div>
                 <div className="flex gap-4">
                   <button onClick={handleCreateHabit} className="btn-primary flex-1">
@@ -277,6 +463,50 @@ export default function HabitsPage() {
                   </button>
                   <button onClick={() => setIsCreating(false)} className="btn-glass flex-1">
                     Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </>
+      )}
+
+      {/* Delete Habit Modal */}
+      {deleteHabitId && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50"
+            onClick={() => setDeleteHabitId(null)}
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="glass-strong rounded-3xl p-8 max-w-md w-full">
+              <div className="text-center">
+                <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-red-100 flex items-center justify-center">
+                  <span className="text-red-600 text-xl">⚠️</span>
+                </div>
+                <h2 className="text-xl font-semibold text-gray-900 mb-2">Delete Habit</h2>
+                <p className="text-gray-600 mb-6">
+                  Are you sure you want to delete this habit permanently? This action cannot be undone.
+                </p>
+                <div className="flex gap-3">
+                  <button 
+                    onClick={() => setDeleteHabitId(null)}
+                    className="btn-glass flex-1"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={handleDeleteHabit}
+                    className="flex-1 px-4 py-2 bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors"
+                  >
+                    Delete
                   </button>
                 </div>
               </div>

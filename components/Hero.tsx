@@ -49,9 +49,9 @@ export default function Hero() {
             transform: "translateZ(0)",
           }}
         >
-          {/* Main Gradient Sphere - Purple to Blue to Pink */}
+          {/* Main Gradient Sphere - Purple to Blue to Pink - BRIGHT */}
           <motion.div 
-            className="w-[600px] h-[600px] md:w-[800px] md:h-[800px] rounded-full"
+            className="w-[700px] h-[700px] md:w-[1000px] md:h-[1000px] rounded-full"
             animate={{
               x: [0, 30, -20, 0],
               y: [0, -30, 20, 0],
@@ -69,18 +69,27 @@ export default function Hero() {
               },
             }}
             style={{
-              background: "radial-gradient(circle, rgba(196, 181, 253, 0.4) 0%, rgba(147, 197, 253, 0.3) 30%, rgba(251, 182, 206, 0.2) 60%, transparent 100%)",
-              filter: "blur(80px)",
+              background: "radial-gradient(circle, rgba(196, 181, 253, 0.8) 0%, rgba(147, 197, 253, 0.7) 30%, rgba(251, 182, 206, 0.6) 60%, transparent 100%)",
+              filter: "blur(60px)",
               transform: "translateZ(0)",
               willChange: "transform",
             }}
           />
-          {/* Overlay gradient for depth */}
+          {/* Overlay gradient for depth - BRIGHT */}
           <div 
             className="absolute inset-0 rounded-full"
             style={{
-              background: "radial-gradient(circle, rgba(139, 92, 246, 0.2) 0%, transparent 70%)",
-              filter: "blur(60px)",
+              background: "radial-gradient(circle, rgba(139, 92, 246, 0.6) 0%, rgba(236, 72, 153, 0.4) 40%, transparent 70%)",
+              filter: "blur(40px)",
+              transform: "translateZ(0)",
+            }}
+          />
+          {/* Extra bright center glow */}
+          <div 
+            className="absolute inset-0 rounded-full"
+            style={{
+              background: "radial-gradient(circle, rgba(167, 139, 250, 0.9) 0%, rgba(147, 197, 253, 0.7) 50%, transparent 80%)",
+              filter: "blur(50px)",
               transform: "translateZ(0)",
             }}
           />

@@ -31,14 +31,18 @@ export function useEvents(startDate?: Date, endDate?: Date) {
         .order("start_ts", { ascending: true });
 
       if (startDate && endDate) {
+        console.log(`[useEvents] Fetching events from ${startDate.toISOString()} to ${endDate.toISOString()}`);
         query = query
           .gte("start_ts", startDate.toISOString())
-          .lte("end_ts", endDate.toISOString());
+          .lte("start_ts", endDate.toISOString());
+      } else {
+        console.log('[useEvents] Fetching all events (no date filter)');
       }
 
       const { data, error } = await query;
 
       if (error) throw error;
+      console.log(`[useEvents] Fetched ${data?.length || 0} events:`, data);
       setEvents(data || []);
     } catch (err) {
       setError(err as Error);
@@ -54,25 +58,45 @@ export function useEvents(startDate?: Date, endDate?: Date) {
 
   const createEvent = async (event: Partial<Event>) => {
     try {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
+      console.log('[useEvents] Creating event via API:', event);
+      
+      // Use API route for better error handling and consistency
+      const response = await fetch('/api/events', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(event),
+      });
 
-      const { data, error } = await supabase
-        .from("events")
-        .insert({
-          ...event,
-          user_id: user.id,
-        })
-        .select()
-        .single();
+      const result = await response.json();
 
-      if (error) throw error;
-      setEvents([...events, data]);
+      if (!response.ok) {
+        console.error('[useEvents] API error:', result.error);
+        throw new Error(result.error || `Failed to create event: ${response.statusText}`);
+      }
+
+      if (!result.success || !result.event) {
+        console.error('[useEvents] Invalid API response:', result);
+        throw new Error('Invalid response from server');
+      }
+
+      const data = result.event;
+      console.log('[useEvents] Event created successfully:', data);
+      
+      // Always add to local state immediately for instant UI update
+      // The refetch will ensure consistency with the database
+      setEvents((prevEvents) => {
+        // Check if event already exists (avoid duplicates)
+        const exists = prevEvents.some(e => e.id === data.id);
+        if (exists) {
+          return prevEvents;
+        }
+        return [...prevEvents, data];
+      });
+      
       return data;
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error creating event:", err);
       throw err;
     }

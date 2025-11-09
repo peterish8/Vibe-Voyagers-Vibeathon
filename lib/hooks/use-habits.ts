@@ -30,16 +30,38 @@ export function useHabits() {
     fetchHabits();
     fetchLogs();
   }, []);
+  
+  // Refetch when page becomes visible
+  useEffect(() => {
+    const handleFocus = () => {
+      fetchHabits();
+      fetchLogs();
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, []);
 
   const fetchHabits = async () => {
     try {
+      setError(null);
       const supabase = createClient();
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.log('[useHabits] No user found, skipping fetch');
+        setHabits([]);
+        setLoading(false);
+        return;
+      }
+      
       const { data, error } = await supabase
         .from("habits")
         .select("*")
+        .eq('user_id', user.id)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
+      console.log('[useHabits] Fetched habits:', data?.length || 0);
       setHabits(data || []);
     } catch (err) {
       setError(err as Error);
@@ -52,13 +74,19 @@ export function useHabits() {
   const fetchLogs = async (date?: Date) => {
     try {
       const supabase = createClient();
-      const targetDate = date || new Date();
-      const dateStr = targetDate.toISOString().split("T")[0];
-
-      const { data, error } = await supabase
+      
+      // Fetch all logs for proper tracking, optionally filter by date
+      let query = supabase
         .from("habit_logs")
         .select("*")
-        .eq("log_date", dateStr);
+        .order("log_date", { ascending: false });
+      
+      if (date) {
+        const dateStr = date.toISOString().split("T")[0];
+        query = query.eq("log_date", dateStr);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setLogs(data || []);
@@ -68,29 +96,27 @@ export function useHabits() {
   };
 
   const createHabit = async (habit: Partial<Habit>) => {
-    try {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) throw new Error("Not authenticated");
+    if (!habit.name?.trim()) throw new Error("Habit name is required");
 
-      const { data, error } = await supabase
-        .from("habits")
-        .insert({
-          ...habit,
-          user_id: user.id,
-        })
-        .select()
-        .single();
+    const { data, error } = await supabase
+      .from("habits")
+      .insert({
+        name: habit.name.trim(),
+        is_active: habit.is_active ?? true,
+        target_days_per_week: habit.target_days_per_week ?? 7,
+        user_id: user.id,
+      })
+      .select()
+      .single();
 
-      if (error) throw error;
-      setHabits([data, ...habits]);
-      return data;
-    } catch (err) {
-      console.error("Error creating habit:", err);
-      throw err;
-    }
+    if (error) throw error;
+    
+    setHabits([data, ...habits]);
+    return data;
   };
 
   const updateHabit = async (id: string, updates: Partial<Habit>) => {
