@@ -9,8 +9,8 @@ import {
   Target, 
   BarChart3,
   Settings,
-  ChevronLeft,
-  ChevronRight
+  Menu,
+  X
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { usePathname } from "next/navigation";
@@ -18,9 +18,10 @@ import Link from "next/link";
 import { useProfile } from "@/lib/hooks/use-profile";
 import { createClient } from "@/lib/supabase/client";
 import { startOfDay, endOfDay, isToday } from "date-fns";
+import { useLeftSidebar } from "@/lib/contexts/LeftSidebarContext";
 
 export default function LeftSidebar() {
-  const [collapsed, setCollapsed] = useState(false);
+  const { collapsed, setCollapsed } = useLeftSidebar();
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
   const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
@@ -143,30 +144,54 @@ export default function LeftSidebar() {
   return (
     <motion.aside
       initial={false}
-      animate={{ width: collapsed ? 60 : 240 }}
-      className="fixed left-0 top-16 bottom-0 glass border-r border-white/30 z-40 transition-all duration-300"
+      animate={{ width: collapsed ? 80 : 240 }}
+      transition={{ duration: 0.3, ease: "easeInOut" }}
+      className="fixed left-0 top-16 bottom-0 glass border-r border-white/30 z-40 overflow-hidden"
     >
       <div className="h-full flex flex-col p-4">
-                {/* Date & Time */}
-                {!collapsed && (
-                  <div className="mb-6 pb-6 border-b border-gray-200/50">
-                    {mounted && currentTime ? (
-                      <>
-                        <div className="text-sm font-medium text-gray-700">
-                          {formatDate(currentTime)}
-                        </div>
-                        <div className="text-lg font-semibold text-gray-900 mt-1 animate-breathing" suppressHydrationWarning>
-                          {formatTime(currentTime)}
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="text-sm font-medium text-gray-700 h-5 w-32 bg-gray-200/50 rounded animate-pulse" />
-                        <div className="text-lg font-semibold text-gray-900 mt-1 h-6 w-24 bg-gray-200/50 rounded animate-pulse" />
-                      </>
-                    )}
-                  </div>
-                )}
+        {/* Collapse Button */}
+        <div className="flex justify-end mb-4">
+          <motion.button
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={() => setCollapsed(!collapsed)}
+            className="w-8 h-8 rounded-lg glass border border-white/30 flex items-center justify-center hover:bg-white/80 transition-colors"
+          >
+            {collapsed ? (
+              <Menu className="w-4 h-4 text-gray-600" />
+            ) : (
+              <X className="w-4 h-4 text-gray-600" />
+            )}
+          </motion.button>
+        </div>
+
+        {/* Date & Time */}
+        <motion.div
+          initial={false}
+          animate={{ 
+            opacity: collapsed ? 0 : 1,
+            height: collapsed ? 0 : "auto",
+            marginBottom: collapsed ? 0 : 24
+          }}
+          transition={{ duration: 0.3, ease: "easeInOut" }}
+          className="pb-6 border-b border-gray-200/50 overflow-hidden"
+        >
+          {mounted && currentTime ? (
+            <>
+              <div className="text-sm font-medium text-gray-700">
+                {formatDate(currentTime)}
+              </div>
+              <div className="text-lg font-semibold text-gray-900 mt-1 animate-breathing" suppressHydrationWarning>
+                {formatTime(currentTime)}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="text-sm font-medium text-gray-700 h-5 w-32 bg-gray-200/50 rounded animate-pulse" />
+              <div className="text-lg font-semibold text-gray-900 mt-1 h-6 w-24 bg-gray-200/50 rounded animate-pulse" />
+            </>
+          )}
+        </motion.div>
 
         {/* Navigation */}
         <nav className="flex-1 space-y-1">
@@ -185,19 +210,33 @@ export default function LeftSidebar() {
                 <motion.div
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  className={`nav-item ${isActive ? "nav-item-active" : ""}`}
+                  className={`${collapsed ? 'flex items-center justify-center p-3 rounded-xl transition-colors' : 'nav-item'} ${
+                    isActive 
+                      ? collapsed 
+                        ? 'bg-purple-100 text-purple-600' 
+                        : 'nav-item-active'
+                      : collapsed
+                        ? 'hover:bg-gray-100'
+                        : ''
+                  }`}
                 >
-                  <Icon className="w-5 h-5 flex-shrink-0" />
-                  {!collapsed && (
-                    <>
-                      <span className="flex-1 text-sm font-medium">{item.label}</span>
-                      {item.badge && (
-                        <span className="px-2 py-0.5 rounded-full bg-white/30 text-xs font-medium">
-                          {item.badge}
-                        </span>
-                      )}
-                    </>
-                  )}
+                  <Icon className={`w-5 h-5 flex-shrink-0 ${isActive && collapsed ? 'text-purple-600' : ''}`} />
+                  <motion.div
+                    initial={false}
+                    animate={{ 
+                      opacity: collapsed ? 0 : 1,
+                      width: collapsed ? 0 : "auto"
+                    }}
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                    className="flex items-center justify-between flex-1 overflow-hidden"
+                  >
+                    <span className="text-sm font-medium whitespace-nowrap">{item.label}</span>
+                    {item.badge && (
+                      <span className="px-2 py-0.5 rounded-full bg-white/30 text-xs font-medium ml-2">
+                        {item.badge}
+                      </span>
+                    )}
+                  </motion.div>
                 </motion.div>
               </Link>
             );
@@ -205,61 +244,76 @@ export default function LeftSidebar() {
         </nav>
 
         {/* Divider */}
-        {!collapsed && <div className="h-px bg-gray-200/50 my-4" />}
+        <motion.div
+          initial={false}
+          animate={{ 
+            opacity: collapsed ? 0 : 1,
+            height: collapsed ? 0 : 1
+          }}
+          transition={{ duration: 0.3, ease: "easeInOut" }}
+          className="bg-gray-200/50 my-4 overflow-hidden"
+        />
 
         {/* Settings */}
         <Link href="/app/settings">
           <motion.div
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            className={`nav-item ${pathname === "/app/settings" ? "nav-item-active" : ""}`}
+            className={`${collapsed ? 'flex items-center justify-center p-3 rounded-xl transition-colors' : 'nav-item'} ${
+              pathname === "/app/settings"
+                ? collapsed 
+                  ? 'bg-purple-100 text-purple-600' 
+                  : 'nav-item-active'
+                : collapsed
+                  ? 'hover:bg-gray-100'
+                  : ''
+            }`}
           >
-            <Settings className="w-5 h-5 flex-shrink-0" />
-            {!collapsed && (
-              <span className="flex-1 text-sm font-medium">Settings</span>
-            )}
+            <Settings className={`w-5 h-5 flex-shrink-0 ${pathname === "/app/settings" && collapsed ? 'text-purple-600' : ''}`} />
+            <motion.span
+              initial={false}
+              animate={{ 
+                opacity: collapsed ? 0 : 1,
+                width: collapsed ? 0 : "auto"
+              }}
+              transition={{ duration: 0.3, ease: "easeInOut" }}
+              className="flex-1 text-sm font-medium overflow-hidden whitespace-nowrap"
+            >
+              Settings
+            </motion.span>
           </motion.div>
         </Link>
 
         {/* User Profile Card */}
-        {!collapsed && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="mt-4 glass rounded-2xl p-4"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-white font-semibold text-xs">
-                {initials}
+        <motion.div
+          initial={false}
+          animate={{ 
+            opacity: collapsed ? 0 : 1,
+            height: collapsed ? 0 : "auto",
+            marginTop: collapsed ? 0 : 16
+          }}
+          transition={{ duration: 0.3, ease: "easeInOut" }}
+          className="glass rounded-2xl p-4 overflow-hidden"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-white font-semibold text-xs">
+              {initials}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold text-gray-900 truncate">
+                {displayName}
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-gray-900 truncate">
-                  {displayName}
-                </div>
-                <div className="text-xs text-gray-500 truncate">
-                  @{username}
-                </div>
+              <div className="text-xs text-gray-500 truncate">
+                @{username}
               </div>
             </div>
-            <button className="mt-3 w-full text-xs text-purple-600 hover:text-purple-700 text-left">
-              Manage account
-            </button>
-          </motion.div>
-        )}
+          </div>
+          <button className="mt-3 w-full text-xs text-purple-600 hover:text-purple-700 text-left">
+            Manage account
+          </button>
+        </motion.div>
 
-        {/* Collapse Button */}
-        <motion.button
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
-          onClick={() => setCollapsed(!collapsed)}
-          className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full glass border border-white/30 flex items-center justify-center hover:bg-white/80 transition-colors"
-        >
-          {collapsed ? (
-            <ChevronRight className="w-3 h-3 text-gray-600" />
-          ) : (
-            <ChevronLeft className="w-3 h-3 text-gray-600" />
-          )}
-        </motion.button>
+
       </div>
     </motion.aside>
   );

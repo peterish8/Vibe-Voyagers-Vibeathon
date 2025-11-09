@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   title TEXT NOT NULL,
   notes TEXT,
   priority TEXT CHECK (priority IN ('low', 'medium', 'high')) DEFAULT 'medium',
-  effort TEXT CHECK (effort IN ('small', 'medium', 'large')) DEFAULT 'medium',
+  effort TEXT CHECK (effort IN ('small', 'medium', 'large') OR effort IS NULL) DEFAULT NULL,
   energy TEXT CHECK (energy IN ('low', 'medium', 'high')),
   due_date DATE,
   status TEXT CHECK (status IN ('open', 'doing', 'done')) DEFAULT 'open',

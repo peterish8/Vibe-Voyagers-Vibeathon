@@ -12,10 +12,23 @@ const ChatPanelContext = createContext<ChatPanelContextType | undefined>(
 );
 
 export function ChatPanelProvider({ children }: { children: ReactNode }) {
-  const [collapsed, setCollapsed] = useState(true); // Start collapsed by default
+  const [collapsed, setCollapsed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('chatPanelCollapsed');
+      return saved ? JSON.parse(saved) : false;
+    }
+    return false;
+  });
+
+  const handleSetCollapsed = (newCollapsed: boolean) => {
+    setCollapsed(newCollapsed);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('chatPanelCollapsed', JSON.stringify(newCollapsed));
+    }
+  };
 
   return (
-    <ChatPanelContext.Provider value={{ collapsed, setCollapsed }}>
+    <ChatPanelContext.Provider value={{ collapsed, setCollapsed: handleSetCollapsed }}>
       {children}
     </ChatPanelContext.Provider>
   );

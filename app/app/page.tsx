@@ -1,11 +1,12 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { format, isToday, startOfDay, endOfDay } from "date-fns";
+import { format, isToday, subDays } from "date-fns";
+import { Flame } from "lucide-react";
 import { useTasks } from "@/lib/hooks/use-tasks";
-import { useEvents } from "@/lib/hooks/use-events";
 import { useHabits } from "@/lib/hooks/use-habits";
 import { useProfile } from "@/lib/hooks/use-profile";
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from "recharts";
 import Link from "next/link";
 
 export default function Dashboard() {
@@ -13,10 +14,6 @@ export default function Dashboard() {
   const greeting = getGreeting();
   const { displayName } = useProfile();
   const { tasks, loading: tasksLoading } = useTasks();
-  const { events, loading: eventsLoading } = useEvents(
-    startOfDay(today),
-    endOfDay(today)
-  );
   const {
     habits,
     logs,
@@ -47,15 +44,6 @@ export default function Dashboard() {
           })
           .slice(0, 3);
 
-  // Get today's events
-  const todayEvents =
-    eventsLoading || !events
-      ? []
-      : events.filter((e) => {
-          const eventDate = new Date(e.start_ts);
-          return isToday(eventDate);
-        });
-
   // Get habit stats
   const habitStats =
     habitsLoading || !habits || !logs
@@ -64,6 +52,29 @@ export default function Dashboard() {
 
   // Get journal streak (simplified - would need journal hook)
   const journalStreak = 0; // TODO: Implement journal streak calculation
+
+  // Generate chart data for last 7 days (overall consistency)
+  const getChartData = () => {
+    return Array.from({ length: 7 }, (_, i) => {
+      const date = subDays(today, 6 - i);
+      const dateStr = date.toISOString().split('T')[0];
+      const activeHabits = habits.filter(h => h.is_active);
+      const completedLogs = logs.filter(
+        l => l.log_date === dateStr && l.completed
+      );
+      
+      const percentage = activeHabits.length > 0
+        ? Math.round((completedLogs.length / activeHabits.length) * 100)
+        : 0;
+      
+      return {
+        date: format(date, "EEE"),
+        score: percentage,
+      };
+    });
+  };
+
+  const chartData = getChartData();
 
   const nickname = displayName || "there";
 
@@ -75,8 +86,31 @@ export default function Dashboard() {
         animate={{ opacity: 1, y: 0 }}
         className="mb-10"
       >
-        <h1 className="text-3xl font-serif font-semibold text-gray-900 mb-2">
-          {greeting}, {nickname} 👋
+        <h1 className="text-3xl font-serif font-semibold text-gray-900 mb-2 flex items-center gap-2">
+          {greeting}, {nickname}
+          <svg
+            width="28"
+            height="28"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            className="inline-block"
+          >
+            <path
+              d="M7 12C7 12 8.5 9 12 9C15.5 9 17 12 17 12M7 12C7 12 5 11 3 11M17 12C17 12 19 11 21 11"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M12 9V6C12 4.5 11 3 9 3C7 3 6 4.5 6 6"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
         </h1>
         <p className="text-gray-600 mb-4">
           Today is {format(today, "EEEE, MMMM d, yyyy")}
@@ -110,8 +144,8 @@ export default function Dashboard() {
         </div>
       </motion.div>
 
-      {/* Grid Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      {/* Grid Layout - 2 columns instead of 3 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Column 1 - Today's Focus */}
         <div className="space-y-8">
           {/* Top 3 Tasks */}
@@ -119,7 +153,7 @@ export default function Dashboard() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="card-glass"
+            className="card-glass min-h-[400px]"
           >
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
               Today&apos;s Top 3
@@ -180,74 +214,19 @@ export default function Dashboard() {
 
         </div>
 
-        {/* Column 2 - Schedule */}
-        <div className="space-y-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="card-glass"
-          >
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              Today&apos;s Schedule
-            </h2>
-                    {todayEvents.length > 0 ? (
-              <div className="space-y-2">
-                {todayEvents.slice(0, 4).map((event) => {
-                  const startTime = new Date(event.start_ts);
-                  const endTime = new Date(event.end_ts);
-                  return (
-                    <div
-                      key={event.id}
-                      className="flex items-center gap-3 text-sm"
-                    >
-                      <div className="w-16 text-gray-500">
-                        <span suppressHydrationWarning>{format(startTime, "h:mm a")}</span>
-                      </div>
-                      <div
-                        className={`flex-1 h-12 rounded-lg border flex items-center px-3 ${
-                          event.category === "deep-work"
-                            ? "bg-purple-100/50 border-purple-200/50"
-                            : event.category === "study"
-                            ? "bg-blue-100/50 border-blue-200/50"
-                            : event.category === "health"
-                            ? "bg-green-100/50 border-green-200/50"
-                            : "bg-gray-100/50 border-gray-200/50"
-                        }`}
-                      >
-                        <span className="text-gray-700">{event.title}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="text-sm text-gray-500">
-                No events scheduled for today.
-              </p>
-            )}
-            <Link
-              href="/app/calendar"
-              className="mt-4 text-sm text-purple-600 hover:text-purple-700 font-medium block"
-            >
-              View full calendar →
-            </Link>
-          </motion.div>
-        </div>
-
-        {/* Column 3 - Quick Stats */}
+        {/* Column 2 - Quick Stats */}
         <div className="space-y-8">
           {/* Quick Stats */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="card-glass"
+            transition={{ delay: 0.3 }}
+            className="card-glass min-h-[400px]"
           >
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
               Quick Stats
             </h2>
-            <div className="space-y-4">
+            <div className="space-y-6">
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm text-gray-600">Habit Score</span>
@@ -262,6 +241,59 @@ export default function Dashboard() {
                   />
                 </div>
               </div>
+              
+              {/* Habit Line Graph */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">
+                  7-Day Habit Consistency
+                </h3>
+                {habitsLoading || !habits || habits.filter(h => h.is_active).length === 0 ? (
+                  <div className="h-[200px] flex items-center justify-center text-sm text-gray-400">
+                    {habitsLoading ? "Loading..." : "No active habits"}
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={200}>
+                    <AreaChart data={chartData}>
+                      <defs>
+                        <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                      <XAxis 
+                        dataKey="date" 
+                        stroke="#6B7280" 
+                        tick={{ fontSize: 11 }}
+                      />
+                      <YAxis 
+                        stroke="#6B7280" 
+                        domain={[0, 100]}
+                        tick={{ fontSize: 11 }}
+                        tickFormatter={(value) => `${value}%`}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "white",
+                          border: "1px solid #E5E7EB",
+                          borderRadius: "8px",
+                          fontSize: "12px",
+                        }}
+                        formatter={(value: number) => `${value}%`}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="score"
+                        stroke="#8B5CF6"
+                        strokeWidth={2}
+                        fillOpacity={1}
+                        fill="url(#colorScore)"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+              
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Tasks Completed</span>
                 <span className="text-lg font-semibold text-gray-900">
@@ -283,8 +315,8 @@ export default function Dashboard() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Journal Streak</span>
-                <span className="text-lg font-semibold text-gray-900">
-                  {journalStreak} days 🔥
+                <span className="text-lg font-semibold text-gray-900 flex items-center gap-1">
+                  {journalStreak} days <Flame className="w-4 h-4 text-orange-500" />
                 </span>
               </div>
             </div>

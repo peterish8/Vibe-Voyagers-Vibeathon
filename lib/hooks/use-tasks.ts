@@ -8,7 +8,7 @@ export interface Task {
   title: string
   notes: string | null
   priority: 'low' | 'medium' | 'high'
-  effort: 'small' | 'medium' | 'large'
+  effort: 'small' | 'medium' | 'large' | null
   energy: 'low' | 'medium' | 'high' | null
   due_date: string | null
   status: 'open' | 'doing' | 'done'
@@ -26,18 +26,41 @@ export function useTasks() {
   useEffect(() => {
     fetchTasks()
   }, [])
+  
+  // Also fetch when component becomes visible (navigation)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        fetchTasks()
+      }
+    }
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [])
 
   const fetchTasks = async () => {
     try {
       setLoading(true)
+      setError(null)
       const supabase = createClient()
+      
+      // Check auth first
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        console.log('[useTasks] No user found, skipping fetch')
+        setTasks([])
+        return
+      }
       
       const { data, error } = await supabase
         .from('tasks')
         .select('*')
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false })
 
       if (error) throw error
+      console.log('[useTasks] Fetched tasks:', data?.length || 0)
       setTasks(data || [])
     } catch (err) {
       setError(err as Error)

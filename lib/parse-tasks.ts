@@ -5,7 +5,7 @@ export interface ParsedTask {
   title: string;
   description?: string;
   priority: "low" | "medium" | "high";
-  effort: "small" | "medium" | "large";
+  effort: "small" | "medium" | "large" | null;
   due_date: string | null;
   tags: string[];
 }
@@ -33,15 +33,29 @@ export function parseAIResponse(response: string): ParsedResponse {
       const parsed = JSON.parse(jsonStr);
       
       if (parsed.tasks && Array.isArray(parsed.tasks)) {
-        result.tasks = parsed.tasks.map((task: any, index: number) => ({
-          id: `task-${Date.now()}-${index}`,
-          title: task.title || "",
-          description: task.description || task.notes || undefined,
-          priority: (task.priority || "medium") as "low" | "medium" | "high",
-          effort: (task.effort || "medium") as "small" | "medium" | "large",
-          due_date: task.due_date || null,
-          tags: task.tags || [],
-        }));
+        result.tasks = parsed.tasks.map((task: any, index: number) => {
+          // Check if this is a physical activity (has "physical" tag or effort is null/undefined)
+          const isPhysicalActivity = 
+            (task.tags && Array.isArray(task.tags) && task.tags.includes("physical")) ||
+            task.effort === null ||
+            task.effort === undefined;
+          
+          // For physical activities, effort should be null
+          // For academic subjects, use the provided effort or default to "medium"
+          const effort = isPhysicalActivity 
+            ? null 
+            : ((task.effort || "medium") as "small" | "medium" | "large" | null);
+          
+          return {
+            id: `task-${Date.now()}-${index}`,
+            title: task.title || "",
+            description: task.description || task.notes || undefined,
+            priority: (task.priority || "medium") as "low" | "medium" | "high",
+            effort: effort,
+            due_date: task.due_date || null,
+            tags: task.tags || [],
+          };
+        });
       }
       
       // Remove the FLOWNOTE_TASKS block from the text

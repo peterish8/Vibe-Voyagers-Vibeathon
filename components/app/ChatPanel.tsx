@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, X, Bot, Target, BookOpen, Copy, Edit2, Check, X as XIcon } from "lucide-react";
+import { Send, X, Bot, Target, BookOpen, Copy, Edit2, Check, X as XIcon, Trash2, Mic } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { sendAIMessage, type AIMessage } from "@/lib/ai";
 import { parseAIResponse, type ParsedTask } from "@/lib/parse-tasks";
@@ -60,10 +60,105 @@ export default function ChatPanel() {
   const [editContent, setEditContent] = useState("");
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
+  const prevCollapsedRef = useRef(collapsed);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recognition, setRecognition] = useState<any>(null);
+  const [isListening, setIsListening] = useState(false);
+  const [isSupported, setIsSupported] = useState(false);
+  const accumulatedTranscriptRef = useRef<string>("");
 
   useEffect(() => {
     setMounted(true);
+    
+    // Initialize speech recognition
+    if (typeof window !== "undefined") {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      
+      if (SpeechRecognition) {
+        setIsSupported(true);
+        const recognitionInstance = new SpeechRecognition();
+        recognitionInstance.continuous = true;
+        recognitionInstance.interimResults = true;
+        recognitionInstance.lang = "en-US";
+
+        recognitionInstance.onresult = (event: any) => {
+          let interimTranscript = "";
+          let finalTranscript = "";
+
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const transcriptText = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+              finalTranscript += transcriptText + " ";
+              accumulatedTranscriptRef.current += transcriptText + " ";
+            } else {
+              interimTranscript += transcriptText;
+            }
+          }
+
+          if (finalTranscript) {
+            const processedFinal = addPunctuation(finalTranscript.trim());
+            let fullText = accumulatedTranscriptRef.current.trim();
+            if (fullText && !fullText.match(/[.!?]$/)) {
+              fullText += " ";
+            }
+            fullText += processedFinal;
+            
+            if (interimTranscript) {
+              fullText += " " + interimTranscript;
+            }
+            
+            setInput(fullText.trim());
+          } else if (interimTranscript) {
+            let fullText = accumulatedTranscriptRef.current.trim();
+            if (fullText && !fullText.match(/[.!?]$/)) {
+              fullText += " ";
+            }
+            fullText += interimTranscript;
+            setInput(fullText.trim());
+          }
+        };
+
+        recognitionInstance.onstart = () => {
+          if (input.trim()) {
+            accumulatedTranscriptRef.current = input + "\n\n";
+            setInput(input + "\n\n");
+          } else {
+            accumulatedTranscriptRef.current = input;
+          }
+        };
+
+        recognitionInstance.onerror = (event: any) => {
+          console.error("Speech recognition error:", event.error);
+          if (event.error === "no-speech") {
+            return;
+          }
+          setIsListening(false);
+          setIsRecording(false);
+        };
+
+        recognitionInstance.onend = () => {
+          setIsListening(false);
+          setIsRecording(false);
+        };
+
+        setRecognition(recognitionInstance);
+      } else {
+        setIsSupported(false);
+      }
+    }
   }, []);
+
+  // Clear messages when panel is reopened (transitions from collapsed to expanded)
+  useEffect(() => {
+    if (prevCollapsedRef.current === true && collapsed === false) {
+      // Panel just reopened, clear all messages and reset to initial greeting
+      setMessages([getInitialMessage(mode)]);
+      setReviewingMessageId(null);
+      setEditingMessageId(null);
+      setError(null);
+    }
+    prevCollapsedRef.current = collapsed;
+  }, [collapsed, mode]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -72,6 +167,13 @@ export default function ChatPanel() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  const handleClearChat = () => {
+    setMessages([getInitialMessage(mode)]);
+    setReviewingMessageId(null);
+    setEditingMessageId(null);
+    setError(null);
+  };
 
   const handleSend = async () => {
     if (!input.trim() || isTyping) return;
@@ -218,6 +320,40 @@ export default function ChatPanel() {
 
   const currentColors = modeColors[mode];
 
+  // Add punctuation based on speech patterns
+  const addPunctuation = (text: string): string => {
+    if (!text.trim()) return text;
+    
+    const sentences = text.split(/([.!?]\s+)/).filter(s => s.trim());
+    
+    return sentences.map(sentence => {
+      let cleaned = sentence.trim();
+      if (!cleaned) return "";
+      
+      cleaned = cleaned.replace(/[.!?]+$/, "");
+      if (!cleaned) return "";
+      
+      const questionPatterns = /^(what|when|where|who|why|how|is|are|was|were|do|does|did|can|could|would|should|will|didn't|doesn't|isn't|aren't|wasn't|weren't)\b/i;
+      const hasQuestionWord = questionPatterns.test(cleaned);
+      
+      const exclamationPatterns = /\b(wow|amazing|incredible|fantastic|great|awesome|yes|yeah|yay|oh|ah|hooray|bravo|excellent|perfect|wonderful)\b/i;
+      const hasExclamationWord = exclamationPatterns.test(cleaned);
+      
+      const questionIndicators = /\b(question|wonder|ask|curious|think|suppose|guess|maybe|perhaps)\b/i;
+      const hasQuestionIndicator = questionIndicators.test(cleaned);
+      
+      const endsWithQuestion = /\b(what|when|where|who|why|how|right|correct|true|sure)\?*$/i.test(cleaned);
+      
+      if (hasQuestionWord || hasQuestionIndicator || endsWithQuestion) {
+        return cleaned + "?";
+      } else if (hasExclamationWord) {
+        return cleaned + "!";
+      } else {
+        return cleaned + ".";
+      }
+    }).join(" ").trim();
+  };
+
   if (collapsed) {
     return (
       <motion.div
@@ -290,6 +426,18 @@ export default function ChatPanel() {
           <h3 className="font-semibold text-gray-900">{CHARACTER_NAMES[mode]}</h3>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleClearChat();
+            }}
+            className="p-1.5 rounded-lg hover:bg-white/50 transition-colors text-gray-500 hover:text-gray-700 relative z-50"
+            title="Clear conversation"
+            type="button"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
           <button
             onClick={(e) => {
               e.preventDefault();
@@ -473,48 +621,96 @@ export default function ChatPanel() {
                         }
 
                         let createdCount = 0;
+                        const errors = [];
+                        
                         for (const task of tasks) {
-                          if (!task.title || !task.title.trim()) {
+                          if (!task.title?.trim()) {
                             console.warn("[ChatPanel] Skipping task with empty title:", task);
                             continue;
                           }
                           
-                          console.log("[ChatPanel] Creating task:", {
-                            title: task.title,
-                            priority: task.priority,
-                            effort: task.effort,
-                            due_date: task.due_date,
-                          });
-
-                          await createTask({
-                            title: task.title.trim(),
-                            notes: task.description || null,
-                            priority: task.priority,
-                            effort: task.effort,
-                            due_date: task.due_date,
-                            tags: task.tags || [],
-                            status: "open",
-                          });
-                          
-                          createdCount++;
-                          console.log(`[ChatPanel] Task ${createdCount} created successfully`);
+                          try {
+                            const taskData = {
+                              title: task.title.trim(),
+                              notes: task.description || null,
+                              priority: 'medium' as const,
+                              effort: 'medium' as const,
+                              due_date: null,
+                              tags: [],
+                              status: "open" as const,
+                            };
+                            
+                            console.log("[ChatPanel] Creating simple task:", taskData);
+                            await createTask(taskData);
+                            createdCount++;
+                            console.log(`[ChatPanel] Task ${createdCount} created successfully`);
+                          } catch (taskError: any) {
+                            console.error(`[ChatPanel] Error creating task "${task.title}":`, taskError);
+                            errors.push(`${task.title}: ${taskError.message || 'Unknown error'}`);
+                          }
                         }
 
                         if (createdCount === 0) {
-                          throw new Error("No valid tasks to create");
+                          throw new Error(`No tasks were created. Errors: ${errors.join(', ')}`);
                         }
 
-                        console.log(`[ChatPanel] All ${createdCount} tasks created, refetching...`);
+                        console.log(`[ChatPanel] ${createdCount} tasks created successfully`);
+                        
+                        // Auto-schedule tasks to calendar
+                        if (createdCount > 0) {
+                          try {
+                            console.log('[ChatPanel] Auto-scheduling tasks to calendar...');
+                            const now = new Date();
+                            let currentTime = new Date();
+                            currentTime.setHours(now.getHours() + 1, 0, 0, 0); // Start 1 hour from now
+                            
+                            for (const task of tasks.slice(0, createdCount)) {
+                              const eventData = {
+                                title: task.title,
+                                category: "deep-work" as const,
+                                start_ts: currentTime.toISOString(),
+                                end_ts: new Date(currentTime.getTime() + 60 * 60 * 1000).toISOString(), // 1 hour duration
+                                notes: task.description || null,
+                              };
+                              
+                              const response = await fetch('/api/events', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(eventData),
+                              });
+                              
+                              if (response.ok) {
+                                console.log(`[ChatPanel] Scheduled "${task.title}" at ${currentTime.toLocaleTimeString()}`);
+                                // Move to next hour for next task
+                                currentTime = new Date(currentTime.getTime() + 90 * 60 * 1000); // 1.5 hours later
+                              }
+                            }
+                            
+                            // Notify calendar to refresh
+                            window.dispatchEvent(new CustomEvent('eventsUpdated'));
+                            console.log('[ChatPanel] Tasks auto-scheduled to calendar');
+                          } catch (scheduleError) {
+                            console.error('[ChatPanel] Error auto-scheduling:', scheduleError);
+                          }
+                        }
+                        
                         // Refetch tasks to update the list
                         await refetchTasks();
                         console.log("[ChatPanel] Tasks refetched, closing review UI");
                         setReviewingMessageId(null);
                         setError(null);
+                        
+                        // Show success message
+                        if (errors.length > 0) {
+                          alert(`${createdCount} tasks created and scheduled! ${errors.length} failed: ${errors.join(', ')}`);
+                        } else {
+                          console.log(`[ChatPanel] ${createdCount} tasks created and auto-scheduled successfully`);
+                        }
                       } catch (err: any) {
-                        console.error("[ChatPanel] Error creating tasks:", err);
+                        console.error("[ChatPanel] Error in task creation process:", err);
                         const errorMessage = err.message || "Failed to create tasks. Please try again.";
                         setError(errorMessage);
-                        throw err; // Re-throw so TaskReview can handle loading state
+                        // Don't re-throw - let TaskReview handle the error state properly
                       }
                     }}
                     onCancel={() => {
@@ -582,6 +778,31 @@ export default function ChatPanel() {
       {/* Input */}
       <div className="p-4 border-t border-white/20 relative z-10">
         <div className="flex items-end gap-2">
+          <button
+            onClick={() => {
+              if (!recognition) {
+                alert('Speech recognition not supported in this browser');
+                return;
+              }
+              
+              if (isRecording) {
+                recognition.stop();
+                setIsRecording(false);
+                setIsListening(false);
+              } else {
+                recognition.start();
+                setIsRecording(true);
+                setIsListening(true);
+              }
+            }}
+            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+              isRecording 
+                ? "bg-red-500 text-white animate-pulse" 
+                : "glass hover:bg-white/80 text-gray-600"
+            }`}
+          >
+            <Mic className="w-4 h-4" />
+          </button>
           <div className="flex-1 relative">
             <div 
               className="absolute inset-0 rounded-2xl pointer-events-none z-0"

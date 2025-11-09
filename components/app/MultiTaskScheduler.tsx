@@ -48,7 +48,12 @@ export default function MultiTaskScheduler({
   }, []);
 
   // Calculate duration based on effort
-  const getDuration = (effort: "small" | "medium" | "large" | string): number => {
+  const getDuration = (effort: "small" | "medium" | "large" | null | string): number => {
+    // Physical activities (null effort) default to 1 hour
+    if (effort === null || effort === undefined) {
+      return 1; // 1 hour for physical activities
+    }
+    
     switch (effort) {
       case "small":
         return 0.5; // 30 minutes
@@ -66,13 +71,13 @@ export default function MultiTaskScheduler({
   const parseTimePreference = (title: string) => {
     const text = title.toLowerCase();
     
-    // Try to match specific times like "10:30", "11:30", "10:30 am", etc.
-    const timePattern = /(\d{1,2}):(\d{2})\s*(am|pm)?/i;
-    const timeMatch = text.match(timePattern);
-    if (timeMatch) {
-      let hour = parseInt(timeMatch[1]);
-      const minutes = parseInt(timeMatch[2]);
-      const ampm = timeMatch[3]?.toLowerCase();
+    // First, try to match times with colons like "10:30", "11:30", "10:30 am", etc.
+    const timePatternWithColon = /(\d{1,2}):(\d{2})\s*(am|pm)?/i;
+    const timeMatchWithColon = text.match(timePatternWithColon);
+    if (timeMatchWithColon) {
+      let hour = parseInt(timeMatchWithColon[1]);
+      const minutes = parseInt(timeMatchWithColon[2]);
+      const ampm = timeMatchWithColon[3]?.toLowerCase();
       
       // Convert to 24-hour format
       if (ampm === 'pm' && hour !== 12) hour += 12;
@@ -86,13 +91,36 @@ export default function MultiTaskScheduler({
       }
     }
     
+    // Try to match times without colons like "7am", "5pm", "9pm", "7 am", "5 pm", etc.
+    const timePatternWithoutColon = /(\d{1,2})\s*(am|pm)/i;
+    const timeMatchWithoutColon = text.match(timePatternWithoutColon);
+    if (timeMatchWithoutColon) {
+      let hour = parseInt(timeMatchWithoutColon[1]);
+      const ampm = timeMatchWithoutColon[2]?.toLowerCase();
+      
+      // Convert to 24-hour format
+      if (ampm === 'pm' && hour !== 12) hour += 12;
+      if (ampm === 'am' && hour === 12) hour = 0;
+      
+      if (hour >= 0 && hour <= 23) {
+        return { preferredHour: hour, preferredMinutes: 0, type: 'specific' };
+      }
+    }
+    
+    // Handle "after [activity]" patterns - check if title mentions "after swimming", "after [something]"
+    const afterMatch = text.match(/after\s+(\w+)/i);
+    if (afterMatch) {
+      // This will be handled by sorting logic - return a marker
+      return { preferredHour: null, preferredMinutes: null, type: 'after', afterActivity: afterMatch[1] };
+    }
+    
     // Evening/night patterns
     if (text.includes('after 8') || text.includes('8 pm') || text.includes('8pm') || 
         text.includes('evening') || text.includes('night') || text.includes('8 o\'clock')) {
       return { preferredHour: 20, preferredMinutes: 0, type: 'evening' }; // 8 PM
     }
     
-    // Morning patterns
+    // Morning patterns (but prioritize specific times if found above)
     if (text.includes('morning') || text.includes('early') || text.includes('9 am') || text.includes('9am')) {
       return { preferredHour: 9, preferredMinutes: 0, type: 'morning' };
     }
@@ -105,7 +133,7 @@ export default function MultiTaskScheduler({
     return null;
   };
 
-  // AI Auto-allocate ALL tasks
+  // AI Auto-allocate ALL tasks with time and energy awareness
   const handleAIAllocateAll = () => {
     if (tasks.length === 0) {
       alert("No tasks to allocate");
@@ -117,54 +145,147 @@ export default function MultiTaskScheduler({
     // Clear existing scheduled tasks
     setScheduledTasks([]);
     
+    // Get current time context
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinutes = now.getMinutes();
+    const isToday = selectedDate.toDateString() === now.toDateString();
+    
     // Separate tasks with time preferences
     const tasksWithTimePrefs = tasks.map(task => ({
       ...task,
       timePreference: parseTimePreference(task.title)
     }));
     
-    // Sort: time-specific tasks first, then by priority
+    // Sort: time-specific tasks first (by hour), then handle "after" relationships, then by priority and effort
     const sortedTasks = [...tasksWithTimePrefs].sort((a, b) => {
-      // Time-specific tasks go first
-      if (a.timePreference && !b.timePreference) return -1;
-      if (!a.timePreference && b.timePreference) return 1;
+      // Tasks with specific time preferences come first, sorted by hour
+      const aHasTime = a.timePreference && a.timePreference.preferredHour !== null && a.timePreference.type === 'specific';
+      const bHasTime = b.timePreference && b.timePreference.preferredHour !== null && b.timePreference.type === 'specific';
       
-      // Then by priority
+      if (aHasTime && bHasTime) {
+        // Both have specific times - sort by hour
+        return (a.timePreference!.preferredHour! - b.timePreference!.preferredHour!);
+      }
+      if (aHasTime && !bHasTime) return -1;
+      if (!aHasTime && bHasTime) return 1;
+      
+      // Handle "after" relationships - tasks that come "after" another should be scheduled after that task
+      const aIsAfter = a.timePreference && a.timePreference.type === 'after';
+      const bIsAfter = b.timePreference && b.timePreference.type === 'after';
+      
+      if (aIsAfter && !bIsAfter) return 1; // "After" tasks come later
+      if (!aIsAfter && bIsAfter) return -1;
+      
+      // If both are "after" tasks, try to match them to their referenced activity
+      if (aIsAfter && bIsAfter) {
+        // Find the task that "a" comes after
+        const aAfterTask = tasksWithTimePrefs.find(t => 
+          t.title.toLowerCase().includes(a.timePreference!.afterActivity!.toLowerCase())
+        );
+        const bAfterTask = tasksWithTimePrefs.find(t => 
+          t.title.toLowerCase().includes(b.timePreference!.afterActivity!.toLowerCase())
+        );
+        
+        if (aAfterTask && bAfterTask) {
+          // Sort based on when their referenced tasks are scheduled
+          const aAfterTime = aAfterTask.timePreference?.preferredHour ?? 12;
+          const bAfterTime = bAfterTask.timePreference?.preferredHour ?? 12;
+          return aAfterTime - bAfterTime;
+        }
+      }
+      
+      // For tasks without specific times, sort by priority and effort
       const priorityOrder = { high: 3, medium: 2, low: 1 };
-      return (priorityOrder[b.priority] || 0) - (priorityOrder[a.priority] || 0);
+      const priorityDiff = (priorityOrder[b.priority] || 0) - (priorityOrder[a.priority] || 0);
+      if (priorityDiff !== 0) return priorityDiff;
+      
+      const effortOrder = { large: 3, medium: 2, small: 1, null: 0 };
+      const aEffort = a.effort || 'null';
+      const bEffort = b.effort || 'null';
+      return (effortOrder[bEffort as keyof typeof effortOrder] || 0) - (effortOrder[aEffort as keyof typeof effortOrder] || 0);
     });
 
     const allocated: ScheduledTask[] = [];
-    let currentHour = 9; // Start at 9 AM for non-specific tasks
-    let currentMinutes = 0;
+    
+    // Start from current time + 30 minutes if today, otherwise 9 AM
+    let currentSlotHour = isToday ? currentHour : 9;
+    let currentSlotMinutes = isToday ? Math.ceil((currentMinutes + 30) / 15) * 15 : 0;
+    
+    // Handle minute overflow
+    if (currentSlotMinutes >= 60) {
+      currentSlotHour += Math.floor(currentSlotMinutes / 60);
+      currentSlotMinutes = currentSlotMinutes % 60;
+    }
+    
+    // Don't start before 8 AM or after 8 PM
+    if (currentSlotHour < 8) {
+      currentSlotHour = 8;
+      currentSlotMinutes = 0;
+    }
+    if (currentSlotHour >= 20) {
+      currentSlotHour = 20;
+      currentSlotMinutes = 0;
+    }
 
-    sortedTasks.forEach((task, index) => {
+    sortedTasks.forEach((task) => {
       const duration = getDuration(task.effort);
-      let startHour = currentHour;
-      let startMinutes = currentMinutes;
+      let startHour = currentSlotHour;
+      let startMinutes = currentSlotMinutes;
       
-      // Use time preference if specified
-      if (task.timePreference) {
+      // Handle "after" relationships first
+      if (task.timePreference && task.timePreference.type === 'after') {
+        // Find the task this one comes after
+        const afterTask = allocated.find(t => 
+          t.title.toLowerCase().includes(task.timePreference!.afterActivity!.toLowerCase())
+        );
+        
+        if (afterTask) {
+          // Schedule right after the referenced task ends
+          const afterEnd = new Date(afterTask.endTime);
+          startHour = afterEnd.getHours();
+          startMinutes = afterEnd.getMinutes();
+        } else {
+          // If referenced task not found yet, use current slot (will be adjusted later)
+          // This shouldn't happen if sorting is correct, but fallback just in case
+        }
+      }
+      // Use time preference if specified (and not an "after" type)
+      else if (task.timePreference && task.timePreference.preferredHour !== null) {
         startHour = task.timePreference.preferredHour;
         startMinutes = task.timePreference.preferredMinutes ?? 0;
+      } else {
+        // Smart scheduling based on effort and current time
+        if (task.effort === 'large' && startHour >= 14) {
+          // Large tasks after 2 PM should be moved to next morning
+          startHour = 9;
+          startMinutes = 0;
+        } else if (task.effort === 'small' && startHour <= 11) {
+          // Small tasks in morning can be scheduled in gaps
+          // Keep current slot
+        }
       }
       
-      // Ensure start hour is within valid range (0-23)
-      if (startHour < 0) startHour = 0;
-      if (startHour > 23) startHour = 23;
+      // Ensure within working hours (but allow 9pm for meditation)
+      if (startHour < 7) startHour = 7; // Allow 7am for jogging
+      if (startHour >= 21 && !task.title.toLowerCase().includes('meditat')) {
+        startHour = 20; // Don't allow after 8pm except for meditation
+      }
       
       // Create start time
       const startTime = new Date(selectedDate);
       startTime.setHours(startHour, startMinutes, 0, 0);
       
-      // Create end time, but clip to 11:59 PM if it extends past midnight
+      // Create end time
       const endTime = new Date(startTime);
       endTime.setTime(startTime.getTime() + (duration * 60 * 60 * 1000));
       
-      // Clip end time to 11:59 PM if it goes past midnight
+      // Don't let tasks run past 8 PM (except meditation which can go to 9pm)
+      const isMeditation = task.title.toLowerCase().includes('meditat');
+      const maxEndHour = isMeditation ? 21 : 20; // 9pm for meditation, 8pm for others
       const maxEndTime = new Date(selectedDate);
-      maxEndTime.setHours(23, 59, 0, 0);
-      if (endTime > maxEndTime || endTime.getDate() > startTime.getDate()) {
+      maxEndTime.setHours(maxEndHour, 0, 0, 0);
+      if (endTime > maxEndTime && !task.timePreference) {
         endTime.setTime(maxEndTime.getTime());
       }
       
@@ -177,27 +298,33 @@ export default function MultiTaskScheduler({
         duration
       });
       
-      // Only advance time for non-specific tasks
+      // Advance to next slot only for non-time-specific tasks
       if (!task.timePreference) {
-        const totalMinutes = (duration * 60) + 15;
-        currentMinutes += totalMinutes;
+        const totalMinutes = (duration * 60) + 15; // 15 min buffer
+        currentSlotMinutes += totalMinutes;
         
-        while (currentMinutes >= 60) {
-          currentHour += 1;
-          currentMinutes -= 60;
+        while (currentSlotMinutes >= 60) {
+          currentSlotHour += 1;
+          currentSlotMinutes -= 60;
         }
         
-        // Round to nearest 15 minutes for cleaner scheduling
-        currentMinutes = Math.round(currentMinutes / 15) * 15;
+        // Round to nearest 15 minutes
+        currentSlotMinutes = Math.round(currentSlotMinutes / 15) * 15;
         
-        // Don't allow scheduling past 11 PM
-        if (currentHour >= 24) {
-          currentHour = 23;
-          currentMinutes = 0;
+        // Skip lunch (12-1 PM)
+        if (currentSlotHour === 12) {
+          currentSlotHour = 13;
+          currentSlotMinutes = 0;
+        }
+        
+        // Stop scheduling after 8 PM
+        if (currentSlotHour >= 20) {
+          currentSlotHour = 20;
+          currentSlotMinutes = 0;
         }
       }
       
-      console.log(`Allocated: ${task.title} at ${startTime.toLocaleTimeString()} (${task.timePreference ? 'time-specific' : 'auto'})`);
+      console.log(`Allocated: ${task.title} at ${startTime.toLocaleTimeString()} - ${endTime.toLocaleTimeString()}`);
     });
 
     console.log("Final allocated tasks:", allocated);
@@ -498,6 +625,61 @@ export default function MultiTaskScheduler({
     });
   };
 
+  // Calculate layout for overlapping tasks (stack them side by side)
+  const calculateTaskLayout = (tasks: ScheduledTask[]) => {
+    if (tasks.length === 0) return new Map();
+    
+    // Sort tasks by start time
+    const sorted = [...tasks].sort((a, b) => {
+      const aStart = new Date(a.startTime!).getTime();
+      const bStart = new Date(b.startTime!).getTime();
+      return aStart - bStart;
+    });
+
+    // Group overlapping tasks into columns
+    const columns: ScheduledTask[][] = [];
+    const taskLayout = new Map<string, { column: number; totalColumns: number }>();
+
+    sorted.forEach((task) => {
+      const taskStart = new Date(task.startTime!);
+      const taskEnd = new Date(task.endTime!);
+      
+      // Find which columns this task can fit into (doesn't overlap)
+      let placed = false;
+      for (let colIndex = 0; colIndex < columns.length; colIndex++) {
+        const column = columns[colIndex];
+        // Check if task overlaps with any task in this column
+        const overlaps = column.some((existingTask) => {
+          const existingStart = new Date(existingTask.startTime!);
+          const existingEnd = new Date(existingTask.endTime!);
+          return taskStart < existingEnd && taskEnd > existingStart;
+        });
+        
+        if (!overlaps) {
+          // Place task in this column
+          column.push(task);
+          taskLayout.set(task.task.id, { column: colIndex, totalColumns: columns.length });
+          placed = true;
+          break;
+        }
+      }
+      
+      // If couldn't fit in any existing column, create a new one
+      if (!placed) {
+        columns.push([task]);
+        taskLayout.set(task.task.id, { column: columns.length - 1, totalColumns: columns.length });
+      }
+    });
+
+    // Update totalColumns for all tasks
+    const maxColumns = columns.length;
+    taskLayout.forEach((layout, taskId) => {
+      layout.totalColumns = maxColumns;
+    });
+
+    return taskLayout;
+  };
+
   if (!isOpen || !mounted) return null;
 
   const modalContent = (
@@ -615,8 +797,12 @@ export default function MultiTaskScheduler({
                   </div>
                 </div>
                 <div className="relative">
-                  {hours.map((hour) => {
-                    const slotEvents = getEventsForSlot(0, hour);
+                  {(() => {
+                    // Calculate layout for ALL tasks in the day (once, outside the hour loop)
+                    const allDayLayout = calculateTaskLayout(scheduledTasks);
+                    
+                    return hours.map((hour) => {
+                      const slotEvents = getEventsForSlot(0, hour);
                     const tasksForSlot = getTasksForSlot(hour);
                     const isDragOver = dragOverSlot?.hour === hour;
 
@@ -664,50 +850,88 @@ export default function MultiTaskScheduler({
                             </div>
                           </div>
                         )}
-                        {scheduledTasks
-                          .filter(task => {
+                        {(() => {
+                          // Get all tasks that overlap with this hour slot
+                          const tasksInSlot = scheduledTasks.filter(task => {
                             if (!task.startTime || !task.endTime) return false;
                             const taskStart = new Date(task.startTime);
-                            const taskHour = taskStart.getHours();
-                            // Only show tasks that start in this hour slot, and ensure hour is valid (0-23)
-                            return taskHour === hour && taskHour >= 0 && taskHour <= 23;
-                          })
-                          .map((task) => {
-                            const taskStart = new Date(task.startTime!);
-                            const taskEnd = new Date(task.endTime!);
-                            const minutes = taskStart.getMinutes();
-                            const taskStartHour = taskStart.getHours();
-                            const taskEndHour = taskEnd.getHours();
-                            
-                            // Calculate height, but clip to not extend past 11 PM (hour 23)
-                            let heightPx = task.duration * 48; // 48px per hour
-                            
-                            // If task extends past 11 PM, clip it to end at 11:59 PM
-                            if (taskEndHour > 23 || (taskEndHour === 0 && taskEnd.getDate() > taskStart.getDate())) {
-                              const maxEndTime = new Date(taskStart);
-                              maxEndTime.setHours(23, 59, 0, 0);
-                              const maxDuration = (maxEndTime.getTime() - taskStart.getTime()) / (1000 * 60 * 60); // hours
-                              heightPx = maxDuration * 48;
-                            }
-                            
-                            return (
-                              <div
-                                key={task.task.id}
-                                draggable
-                                onDragStart={() => handleDragStart(task.task.id)}
-                                className={`absolute left-1 right-1 rounded border-2 z-10 cursor-move group ${
-                                  task.task.priority === "high"
-                                    ? "bg-red-200 border-red-300 text-red-800 hover:bg-red-300"
-                                    : task.task.priority === "medium"
-                                    ? "bg-amber-200 border-amber-300 text-amber-800 hover:bg-amber-300"
-                                    : "bg-blue-200 border-blue-300 text-blue-800 hover:bg-blue-300"
-                                } flex flex-col text-xs font-medium`}
-                                style={{
-                                  top: `${(minutes / 60) * 48}px`,
-                                  height: `${Math.max(24, Math.min(heightPx, (24 - taskStartHour) * 48 - (minutes / 60) * 48))}px`,
-                                }}
-                                title={`${task.task.title} (${format(taskStart, "h:mm a")} - ${format(taskEnd, "h:mm a")})`}
-                              >
+                            const taskEnd = new Date(task.endTime);
+                            const slotStart = setHours(setMinutes(new Date(selectedDate), 0), hour);
+                            const slotEnd = setHours(setMinutes(new Date(selectedDate), 0), hour + 1);
+                            return taskStart < slotEnd && taskEnd > slotStart;
+                          });
+
+                          return tasksInSlot
+                            .map((task) => {
+                              const taskStart = new Date(task.startTime!);
+                              const taskEnd = new Date(task.endTime!);
+                              const minutes = taskStart.getMinutes();
+                              const taskStartHour = taskStart.getHours();
+                              const taskEndHour = taskEnd.getHours();
+                              
+                              // Calculate height, but clip to not extend past 11 PM (hour 23)
+                              let heightPx = task.duration * 48; // 48px per hour
+                              
+                              // If task extends past 11 PM, clip it to end at 11:59 PM
+                              if (taskEndHour > 23 || (taskEndHour === 0 && taskEnd.getDate() > taskStart.getDate())) {
+                                const maxEndTime = new Date(taskStart);
+                                maxEndTime.setHours(23, 59, 0, 0);
+                                const maxDuration = (maxEndTime.getTime() - taskStart.getTime()) / (1000 * 60 * 60); // hours
+                                heightPx = maxDuration * 48;
+                              }
+
+                              // Get layout info for this task (from the all-day layout calculated in outer scope)
+                              const taskLayoutInfo = allDayLayout.get(task.task.id) || { column: 0, totalColumns: 1 };
+                              const columnWidth = 100 / taskLayoutInfo.totalColumns;
+                              const leftOffset = (taskLayoutInfo.column * columnWidth);
+                              
+                              // Calculate top offset within this hour slot
+                              let topOffset = 0;
+                              if (taskStartHour === hour) {
+                                // Task starts in this hour - use minutes offset
+                                topOffset = (minutes / 60) * 48;
+                              } else {
+                                // Task started in a previous hour - show from top of this slot
+                                topOffset = 0;
+                              }
+                              
+                              // Calculate height for this hour slot
+                              let heightInSlot = 48; // Full hour by default
+                              if (taskStartHour === hour && taskEndHour === hour) {
+                                // Task starts and ends in this hour
+                                const startMinutes = taskStart.getMinutes();
+                                const endMinutes = taskEnd.getMinutes();
+                                heightInSlot = ((endMinutes - startMinutes) / 60) * 48;
+                              } else if (taskStartHour === hour) {
+                                // Task starts in this hour but continues
+                                heightInSlot = (60 - minutes) / 60 * 48;
+                              } else if (taskEndHour === hour) {
+                                // Task ends in this hour
+                                const endMinutes = taskEnd.getMinutes();
+                                heightInSlot = (endMinutes / 60) * 48;
+                                topOffset = 0;
+                              }
+                              
+                              return (
+                                <div
+                                  key={task.task.id}
+                                  draggable
+                                  onDragStart={() => handleDragStart(task.task.id)}
+                                  className={`absolute rounded border-2 z-10 cursor-move group ${
+                                    task.task.priority === "high"
+                                      ? "bg-red-200 border-red-300 text-red-800 hover:bg-red-300"
+                                      : task.task.priority === "medium"
+                                      ? "bg-amber-200 border-amber-300 text-amber-800 hover:bg-amber-300"
+                                      : "bg-blue-200 border-blue-300 text-blue-800 hover:bg-blue-300"
+                                  } flex flex-col text-xs font-medium`}
+                                  style={{
+                                    top: `${topOffset}px`,
+                                    height: `${Math.max(16, heightInSlot)}px`,
+                                    left: `${leftOffset + 1}%`,
+                                    width: `${columnWidth - 2}%`,
+                                  }}
+                                  title={`${task.task.title} (${format(taskStart, "h:mm a")} - ${format(taskEnd, "h:mm a")})`}
+                                >
                                 {/* Top resize handle */}
                                 <div 
                                   className="h-1 w-full cursor-n-resize bg-gray-400 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -766,7 +990,8 @@ export default function MultiTaskScheduler({
                                 />
                               </div>
                             );
-                          })}
+                          });
+                        })()}
                         {slotEvents.map((event) => (
                           <div
                             key={event.id}
@@ -783,7 +1008,8 @@ export default function MultiTaskScheduler({
                         ))}
                       </div>
                     );
-                  })}
+                  });
+                  })()}
                 </div>
               </div>
             </div>

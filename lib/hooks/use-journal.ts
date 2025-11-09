@@ -23,18 +23,36 @@ export function useJournal() {
   useEffect(() => {
     fetchEntries();
   }, []);
+  
+  // Refetch when page becomes visible
+  useEffect(() => {
+    const handleFocus = () => fetchEntries();
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, []);
 
   const fetchEntries = async () => {
     try {
       setLoading(true);
+      setError(null);
       const supabase = createClient();
+      
+      // Check auth first
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.log('[useJournal] No user found, skipping fetch');
+        setEntries([]);
+        return;
+      }
 
       const { data, error } = await supabase
         .from("journal_entries")
         .select("*")
+        .eq('user_id', user.id)
         .order("entry_date", { ascending: false });
 
       if (error) throw error;
+      console.log('[useJournal] Fetched entries:', data?.length || 0);
       setEntries(data || []);
     } catch (err) {
       setError(err as Error);
