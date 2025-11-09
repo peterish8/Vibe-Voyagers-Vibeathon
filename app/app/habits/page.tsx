@@ -178,7 +178,7 @@ export default function HabitsPage() {
       {/* Habit Checklist */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-900">Today's Habits</h2>
+          <h2 className="text-xl font-semibold text-gray-900">Today&apos;s Habits</h2>
           <button 
             onClick={() => setIsCreating(true)}
             className="btn-primary flex items-center gap-2"
